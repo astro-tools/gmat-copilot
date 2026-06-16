@@ -1,0 +1,219 @@
+[
+  {
+    "id": "leo_circular",
+    "difficulty": "easy",
+    "prompt": "Set up a spacecraft in a 500 km circular low-Earth orbit at 51.6 degrees inclination, propagate for one day, and report the altitude and semi-major axis.",
+    "intent": "A single spacecraft on a ~500 km circular LEO (SMA about 6878 km, ECC about 0, inclination 51.6 deg), propagated for about one day, with a ReportFile recording altitude and semi-major axis.",
+    "structural": {
+      "lint_max": "INFO",
+      "required_types": [
+        "Spacecraft",
+        "Propagator",
+        "ReportFile"
+      ],
+      "required_fields": {
+        "Spacecraft": [
+          "SMA",
+          "ECC",
+          "INC"
+        ]
+      },
+      "required_commands": [
+        "Propagate",
+        "Report"
+      ]
+    },
+    "candidates": [
+      {
+        "file": "leo_circular.good.script",
+        "gold": true,
+        "kind": "good",
+        "note": "correct 500 km circular LEO at 51.6 deg"
+      },
+      {
+        "file": "leo_circular.sem_bad.script",
+        "gold": false,
+        "kind": "semantic-bad",
+        "note": "structurally complete but a GEO orbit at 0 deg, not a 500 km / 51.6 deg LEO"
+      },
+      {
+        "file": "leo_circular.struct_bad.script",
+        "gold": false,
+        "kind": "structural-bad",
+        "note": "no ReportFile / Report at all -> missing required type+command (structural catch)"
+      }
+    ]
+  },
+  {
+    "id": "iss_groundtrack",
+    "difficulty": "easy",
+    "prompt": "Propagate the ISS for 90 minutes and report its geodetic latitude and longitude.",
+    "intent": "A spacecraft (ISS-like LEO) propagated for about 90 minutes (5400 s), with a ReportFile recording the spacecraft's latitude and longitude.",
+    "structural": {
+      "lint_max": "INFO",
+      "required_types": [
+        "Spacecraft",
+        "Propagator",
+        "ReportFile"
+      ],
+      "required_fields": {},
+      "required_commands": [
+        "Propagate",
+        "Report"
+      ]
+    },
+    "candidates": [
+      {
+        "file": "iss_groundtrack.good.script",
+        "gold": true,
+        "kind": "good",
+        "note": "reports latitude + longitude as asked"
+      },
+      {
+        "file": "iss_groundtrack.sem_bad.script",
+        "gold": false,
+        "kind": "semantic-bad",
+        "note": "reports SMA and ECC instead of latitude/longitude (wrong quantities)"
+      },
+      {
+        "file": "iss_groundtrack.struct_bad.script",
+        "gold": false,
+        "kind": "structural-bad",
+        "note": "hallucinated resource type 'Spcecraft' -> lint ERROR (structural catch)"
+      }
+    ]
+  },
+  {
+    "id": "raise_apogee",
+    "difficulty": "medium",
+    "prompt": "Raise the apogee of a 500 km circular orbit using a single prograde impulsive burn.",
+    "intent": "Starting from a ~500 km circular LEO, one prograde (along-velocity, +Element1) impulsive maneuver is applied that increases the orbit's apogee / energy.",
+    "structural": {
+      "lint_max": "INFO",
+      "required_types": [
+        "Spacecraft",
+        "ImpulsiveBurn"
+      ],
+      "required_fields": {},
+      "required_commands": [
+        "Maneuver"
+      ]
+    },
+    "candidates": [
+      {
+        "file": "raise_apogee.good.script",
+        "gold": true,
+        "kind": "good",
+        "note": "prograde burn (+Element1) then maneuver -> raises apogee"
+      },
+      {
+        "file": "raise_apogee.sem_bad.script",
+        "gold": false,
+        "kind": "semantic-bad",
+        "note": "retrograde burn (-Element1) -> lowers the orbit, does not raise apogee"
+      }
+    ]
+  },
+  {
+    "id": "sun_sync",
+    "difficulty": "medium",
+    "prompt": "Set up a sun-synchronous orbit at about 700 km altitude.",
+    "intent": "A spacecraft in a sun-synchronous orbit at ~700 km altitude: SMA ~7078 km, near-circular, with the sun-synchronous (retrograde, ~98 deg) inclination.",
+    "structural": {
+      "lint_max": "INFO",
+      "required_types": [
+        "Spacecraft"
+      ],
+      "required_fields": {
+        "Spacecraft": [
+          "SMA",
+          "INC"
+        ]
+      },
+      "required_commands": []
+    },
+    "candidates": [
+      {
+        "file": "sun_sync.good.script",
+        "gold": true,
+        "kind": "good",
+        "note": "SMA ~7078, inclination 98.2 deg = sun-synchronous"
+      },
+      {
+        "file": "sun_sync.sem_bad.script",
+        "gold": false,
+        "kind": "semantic-bad",
+        "note": "inclination 28.5 deg -> NOT sun-synchronous despite the right altitude"
+      }
+    ]
+  },
+  {
+    "id": "target_apogee",
+    "difficulty": "hard",
+    "prompt": "Use a differential corrector to target an apogee radius of 8000 km by varying an impulsive burn.",
+    "intent": "A targeting sequence using a DifferentialCorrector that varies an impulsive burn and achieves an apogee radius (RMAG at apoapsis) of 8000 km.",
+    "structural": {
+      "lint_max": "INFO",
+      "required_types": [
+        "DifferentialCorrector",
+        "ImpulsiveBurn"
+      ],
+      "required_fields": {},
+      "required_commands": [
+        "Target",
+        "Vary",
+        "Achieve"
+      ]
+    },
+    "candidates": [
+      {
+        "file": "target_apogee.good.script",
+        "gold": true,
+        "kind": "good",
+        "note": "achieves RMAG = 8000 km as asked"
+      },
+      {
+        "file": "target_apogee.sem_bad.script",
+        "gold": false,
+        "kind": "semantic-bad",
+        "note": "structurally a valid target loop but achieves RMAG = 42164 (GEO), not 8000"
+      }
+    ]
+  },
+  {
+    "id": "oem_ephem",
+    "difficulty": "hard",
+    "prompt": "Propagate the spacecraft and write its trajectory to a CCSDS-OEM ephemeris file.",
+    "intent": "A spacecraft propagated with an EphemerisFile output whose format is CCSDS-OEM.",
+    "structural": {
+      "lint_max": "INFO",
+      "required_types": [
+        "Spacecraft",
+        "Propagator",
+        "EphemerisFile"
+      ],
+      "required_fields": {
+        "EphemerisFile": [
+          "FileFormat"
+        ]
+      },
+      "required_commands": [
+        "Propagate"
+      ]
+    },
+    "candidates": [
+      {
+        "file": "oem_ephem.good.script",
+        "gold": true,
+        "kind": "good",
+        "note": "EphemerisFile with FileFormat = CCSDS-OEM"
+      },
+      {
+        "file": "oem_ephem.sem_bad.script",
+        "gold": false,
+        "kind": "semantic-bad",
+        "note": "EphemerisFile present but FileFormat = STK-TimePosVel, not CCSDS-OEM"
+      }
+    ]
+  }
+]
