@@ -6,18 +6,25 @@ zero-quota CI. There is **no default model**: selection is explicit (``"provider
 none given, :func:`select` errors and lists the providers it can reach from configured credentials
 — it never auto-picks or recommends one. Credentials come from the environment, never committed.
 
-The real adapters' ``complete`` calls are wired by the generation feature work; the protocol,
-credential discovery, no-default selection, and the recorded replay path are established here.
+Each real adapter's ``complete`` performs the provider call through its optional extra
+(``[anthropic]`` / ``[openai]`` / ``[ollama]``; GitHub Models needs none) and raises a clear,
+actionable error when that extra is not installed or the credential is absent. The protocol,
+credential discovery, no-default selection, and the recorded replay path round out the surface;
+:class:`RecordingProvider` captures live completions into the fixture shape the recorded path
+replays.
 """
 
 from __future__ import annotations
 
 import hashlib
+import importlib
+import json
 import os
 import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Protocol, runtime_checkable
+from pathlib import Path
+from typing import Any, Protocol, runtime_checkable
 
 __all__ = [
     "AnthropicProvider",
@@ -28,6 +35,7 @@ __all__ = [
     "Provider",
     "ProviderError",
     "RecordedProvider",
+    "RecordingProvider",
     "reachable_providers",
     "select",
 ]
@@ -70,11 +78,30 @@ def prompt_key(provider: str, model: str, prompt: str) -> str:
     return f"{provider}:{model}:{digest}"
 
 
-def _not_wired(provider: str) -> ProviderError:
-    return ProviderError(
-        f"{provider}: live generation is not wired yet; the scaffold establishes the provider "
-        "surface. The API call lands with the generation work"
-    )
+_GITHUB_MODELS_ENDPOINT = "https://models.github.ai/inference/chat/completions"
+
+
+def _require(module: str, extra: str) -> Any:
+    """Import an adapter's optional SDK, or raise a clear install hint if the extra is missing."""
+    try:
+        return importlib.import_module(module)
+    except ImportError as exc:  # the optional extra is not installed
+        raise ProviderError(
+            f"the {extra} provider needs an optional dependency that is not installed; "
+            f"install it with: pip install 'gmat-copilot[{extra}]'"
+        ) from exc
+
+
+def _int_usage(values: Mapping[str, object]) -> dict[str, int]:
+    """Keep only the integer token counts from a provider's native usage record."""
+    return {key: value for key, value in values.items() if isinstance(value, int)}
+
+
+def _field(obj: object, key: str, default: object = None) -> object:
+    """Read *key* from a mapping or an object attribute — provider SDKs return either."""
+    if isinstance(obj, Mapping):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
 
 
 class AnthropicProvider:
@@ -88,11 +115,28 @@ class AnthropicProvider:
     def complete(
         self, prompt: str, *, model: str, temperature: float = 0.0, max_tokens: int = 1024
     ) -> Completion:
-        if not self.reachable():
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        if not key:
             raise ProviderError(
                 "anthropic: no ANTHROPIC_API_KEY (the user supplies their own Claude key)"
             )
-        raise _not_wired(self.name)
+        anthropic = _require("anthropic", "anthropic")
+        message = anthropic.Anthropic(api_key=key).messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = "".join(
+            block.text for block in message.content if getattr(block, "type", None) == "text"
+        )
+        usage = _int_usage(
+            {
+                "input_tokens": getattr(message.usage, "input_tokens", None),
+                "output_tokens": getattr(message.usage, "output_tokens", None),
+            }
+        )
+        return Completion(text=text, provider=self.name, model=model, usage=usage)
 
 
 class OpenAIProvider:
@@ -106,9 +150,31 @@ class OpenAIProvider:
     def complete(
         self, prompt: str, *, model: str, temperature: float = 0.0, max_tokens: int = 1024
     ) -> Completion:
-        if not self.reachable():
+        key = os.environ.get("OPENAI_API_KEY")
+        if not key:
             raise ProviderError("openai: no OPENAI_API_KEY")
-        raise _not_wired(self.name)
+        openai = _require("openai", "openai")
+        response = openai.OpenAI(api_key=key).chat.completions.create(
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        usage = response.usage
+        return Completion(
+            text=response.choices[0].message.content or "",
+            provider=self.name,
+            model=model,
+            usage=_int_usage(
+                {
+                    "prompt_tokens": getattr(usage, "prompt_tokens", None),
+                    "completion_tokens": getattr(usage, "completion_tokens", None),
+                    "total_tokens": getattr(usage, "total_tokens", None),
+                }
+            )
+            if usage is not None
+            else {},
+        )
 
 
 class OllamaProvider:
@@ -131,7 +197,25 @@ class OllamaProvider:
     ) -> Completion:
         if not self.reachable():
             raise ProviderError(f"ollama: not reachable at {self._host()} (start `ollama serve`)")
-        raise _not_wired(self.name)
+        ollama = _require("ollama", "ollama")
+        response = ollama.Client(host=self._host()).generate(
+            model=model,
+            prompt=prompt,
+            options={"temperature": temperature, "num_predict": max_tokens},
+        )
+        raw = _field(response, "response", "")
+        usage = _int_usage(
+            {
+                "prompt_eval_count": _field(response, "prompt_eval_count"),
+                "eval_count": _field(response, "eval_count"),
+            }
+        )
+        return Completion(
+            text=raw if isinstance(raw, str) else "",
+            provider=self.name,
+            model=model,
+            usage=usage,
+        )
 
 
 class GitHubModelsProvider:
@@ -156,11 +240,32 @@ class GitHubModelsProvider:
     def complete(
         self, prompt: str, *, model: str, temperature: float = 0.0, max_tokens: int = 1024
     ) -> Completion:
-        if not self.reachable():
+        token = self._token()
+        if not token:
             raise ProviderError(
                 "github: no token (set GH_TOKEN / MODELS_PAT or run `gh auth login`)"
             )
-        raise _not_wired(self.name)
+        body = json.dumps(
+            {
+                "model": model,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+        ).encode("utf-8")
+        request = urllib.request.Request(
+            _GITHUB_MODELS_ENDPOINT,
+            data=body,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request, timeout=120) as response:
+            payload = json.load(response)
+        return Completion(
+            text=payload["choices"][0]["message"]["content"],
+            provider=self.name,
+            model=model,
+            usage=_int_usage(payload.get("usage", {})),
+        )
 
 
 class RecordedProvider:
@@ -196,6 +301,47 @@ class RecordedProvider:
         raise ProviderError(
             f"recorded: no fixture for model={model!r} and this prompt; record it first"
         )
+
+
+class RecordingProvider:
+    """Wraps a real provider and records every completion as a replayable fixture (D7 record mode).
+
+    A drop-in :class:`Provider`: :meth:`complete` delegates to the wrapped provider and stores the
+    result keyed by ``(provider, model, prompt)`` in the shape :class:`RecordedProvider` and the
+    eval bundle replay. :meth:`save` writes the accumulated fixtures to disk, merging with any
+    already there — the record mode that captures new fixtures for the deterministic CI path.
+    """
+
+    name = "recording"
+
+    def __init__(self, inner: Provider):
+        self.inner = inner
+        self.fixtures: dict[str, dict[str, object]] = {}
+
+    def reachable(self) -> bool:
+        return self.inner.reachable()
+
+    def complete(
+        self, prompt: str, *, model: str, temperature: float = 0.0, max_tokens: int = 1024
+    ) -> Completion:
+        completion = self.inner.complete(
+            prompt, model=model, temperature=temperature, max_tokens=max_tokens
+        )
+        self.fixtures[prompt_key(completion.provider, model, prompt)] = {
+            "text": completion.text,
+            "usage": dict(completion.usage),
+        }
+        return completion
+
+    def save(self, path: str | Path) -> Path:
+        """Write the recorded fixtures to *path* as JSON, merging with any already present."""
+        target = Path(path)
+        merged: dict[str, object] = {}
+        if target.exists():
+            merged = json.loads(target.read_text(encoding="utf-8"))
+        merged.update(self.fixtures)
+        target.write_text(json.dumps(merged, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return target
 
 
 # The credential-gated real adapters, by name. RecordedProvider is constructed explicitly with
