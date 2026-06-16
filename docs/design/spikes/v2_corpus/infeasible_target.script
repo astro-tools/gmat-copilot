@@ -1,0 +1,33 @@
+% DEFECT: infeasible-targeter
+% EXPECT: run
+% NOTE: DifferentialCorrector cannot reach the goal within the Vary bounds.
+
+Create Spacecraft Sat;
+Sat.DisplayStateType = Keplerian;
+Sat.SMA = 7000;
+Sat.ECC = 0.001;
+Sat.INC = 28.5;
+
+Create ForceModel FM;
+FM.PrimaryBodies = {Earth};
+
+Create Propagator Prop;
+Prop.FM = FM;
+
+Create ImpulsiveBurn dv;
+dv.Axes = VNB;
+
+Create DifferentialCorrector DC;
+
+Create ReportFile rf;
+rf.Filename = 'out.report';
+rf.Add = {Sat.Earth.RMAG};
+
+BeginMissionSequence;
+Target DC;
+   Vary DC(dv.Element1 = 0.01, {Perturbation = 1e-5, Lower = 0, Upper = 0.02, MaxStep = 0.005});
+   Maneuver dv(Sat);
+   Propagate Prop(Sat) {Sat.Apoapsis};
+   Achieve DC(Sat.Earth.RMAG = 100000, {Tolerance = 0.1});
+EndTarget;
+Report rf Sat.Earth.RMAG;
