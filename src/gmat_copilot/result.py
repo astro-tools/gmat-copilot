@@ -9,6 +9,7 @@ and draft history once the dry-run and repair loop land.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from gmat_script import Severity
 
@@ -102,3 +103,9 @@ class CopilotResult:
     # Reserved for the v0.2 provenance sidecar (prompt, retrieved chunks, draft history,
     # lint/dry-run results). Kept on the contract now so adding it later is not a schema break.
     provenance: object | None = None
+
+    def save(self, path: str | Path) -> Path:
+        """Write the generated :attr:`script` to *path* (UTF-8); return the written path."""
+        target = Path(path)
+        target.write_text(self.script, encoding="utf-8")
+        return target

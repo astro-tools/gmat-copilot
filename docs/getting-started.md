@@ -42,6 +42,8 @@ result = draft(
 print(result.script)        # the generated GMAT .script text
 print(result.lint.clean)    # did it lint clean?
 print(result.provider, result.model, result.usage)
+
+result.save("mission.script")   # write the script to a file
 ```
 
 The returned [`CopilotResult`](api.md) carries the script, its lint report, the retrieval trace, and
