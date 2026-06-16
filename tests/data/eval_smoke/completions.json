@@ -1,0 +1,10 @@
+{
+  "github:openai/gpt-4.1-mini:2da9a40c033cf5bc": {
+    "text": "Create Spacecraft Sat;\nSat.DateFormat = UTCGregorian;\nSat.Epoch = '01 Jan 2025 12:00:00.000';\nSat.CoordinateSystem = EarthMJ2000Eq;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 6878;\nSat.ECC = 0;\nSat.INC = 51.6;\nSat.RAAN = 0;\nSat.AOP = 0;\nSat.TA = 0;\n\nCreate ForceModel FM;\nFM.CentralBody = Earth;\nFM.PrimaryBodies = {Earth};\n\nCreate Propagator Prop;\nProp.FM = FM;\n\nCreate ReportFile rf;\nrf.Filename = 'out.report';\nrf.Add = {Sat.Earth.Altitude, Sat.Earth.SMA};\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};\nReport rf Sat.Earth.Altitude Sat.Earth.SMA;\n",
+    "usage": {
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0
+    }
+  }
+}
