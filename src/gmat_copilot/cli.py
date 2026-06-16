@@ -14,7 +14,7 @@ from pathlib import Path
 from . import __version__
 from .eval.judge import JUDGE_MODEL
 from .eval.runner import run_recorded
-from .generate import draft
+from .generate import DraftRejected, draft
 from .providers import ProviderError
 from .validate import validate
 
@@ -24,6 +24,14 @@ __all__ = ["main"]
 def _cmd_draft(args: argparse.Namespace) -> int:
     try:
         result = draft(args.request, model=args.model, strict=not args.permissive)
+    except DraftRejected as exc:
+        for d in exc.result.lint.diagnostics:
+            print(
+                f"{d.line}:{d.column}: {d.severity.value}: {d.rule}: {d.message}",
+                file=sys.stderr,
+            )
+        print(f"gmat-copilot: {exc}", file=sys.stderr)
+        return 1
     except (NotImplementedError, ProviderError) as exc:
         print(f"gmat-copilot: {exc}", file=sys.stderr)
         return 2

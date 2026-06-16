@@ -40,6 +40,7 @@ result = draft(
 )
 print(result.script)       # the generated GMAT .script
 print(result.lint.clean)   # did it lint clean?
+result.save("mission.script")
 ```
 
 From the command line:

@@ -7,7 +7,7 @@ returns; the package is GMAT-free for generation and validation.
 
 from __future__ import annotations
 
-from .generate import draft
+from .generate import DraftRejected, draft
 from .result import (
     CopilotResult,
     LintDiagnostic,
@@ -19,6 +19,7 @@ from .result import (
 
 __all__ = [
     "CopilotResult",
+    "DraftRejected",
     "LintDiagnostic",
     "LintReport",
     "RetrievalChunk",
