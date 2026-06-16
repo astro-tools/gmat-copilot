@@ -7,17 +7,18 @@ index ships prebuilt or is built on first use. Outcome feeds the design freeze a
 
 ## Recommendation (TL;DR)
 
-- **Corpus (D2):** the GMAT **help HTML pages** + the **sample scripts** + the **gmat-script
-  catalogue** (structured types/fields/enums). The User's Guide PDF is a deferred second tier.
+- **Corpus (D2):** the GMAT **help HTML** (reference *and* the tutorial / how-to / chapter
+  pages) + the **sample scripts** + the **`.gmf` GmatFunction** files + the **gmat-script
+  catalogue** + a hand-written **domain-notes** tier (modeling semantics and gotchas). The
+  User's Guide PDF and the internal spec PDFs are excluded as redundant / out-of-scope; the
+  gmat-python notes are excluded (wrong surface — Python API).
 - **Licensing (D3):** the GMAT corpus is **Apache-2.0** (the licence covers documentation
-  source), so it is **redistributable with attribution**; the embedding model is MIT. The
-  load-bearing redistribution risk resolves positively — there is no contractual block.
-- **Ship-vs-build (D2):** **ship the chunked corpus text** in the package and **build the
-  FAISS index on first use**, cached under an XDG dir. The whole corpus is tiny (1.2 MiB index,
-  2.6 MiB text) and rebuilds in ~5 s; because the embedding model must be present at query time
-  anyway, shipping a prebuilt index would save only the build step while locking the index to a
-  fixed model + dimension. Shipping text keeps the base install **GMAT-free** and lets the index
-  rebuild deterministically against whatever embedder is pinned.
+  source) → redistributable with attribution; the domain notes are first-party (MIT); the
+  embedding model is MIT. No contractual block.
+- **Ship-vs-build (D2):** the **maintainers extract the corpus at build time** so consumers
+  never need GMAT (the gmat-script `fields-*.json` pattern). **Ship both the chunked text and a
+  prebuilt index**; rebuild the index on first use only as a **fallback** (non-default embedder
+  or corpus change). GMAT-free for the user either way.
 
 ## Licensing (D3)
 
@@ -28,6 +29,9 @@ index ships prebuilt or is built on first use. Outcome feeds the design freeze a
   embeddings) provided we **retain the licence text and attribution/NOTICE and state
   changes**. The sample files carry only a description comment header (no per-file licence),
   so they inherit the install licence.
+- The **domain-notes** tier is first-party content (authored for the project, seeded from the
+  workspace's gmat skills), shipped under the project's **MIT** licence — no third-party
+  entanglement.
 - The org ships its own code under **MIT**. MIT code bundling **Apache-2.0** third-party
   content is compatible one-way: ship a `THIRD-PARTY-NOTICES` carrying GMAT's Apache-2.0
   attribution alongside the project's MIT `LICENSE`. (The design freeze / scaffold lands the
@@ -37,53 +41,101 @@ index ships prebuilt or is built on first use. Outcome feeds the design freeze a
 
 ## Corpus composition (D2)
 
+Reference pages + samples + catalogue cover **vocabulary, syntax, and worked examples**. They
+do *not* cover the **modeling-semantics + gotcha** layer — "how to model intent X" and the
+common mistakes — which is the layer an ungrounded model gets wrong. The domain-notes tier and
+the help tutorials fill it.
+
 Tier 1 (v0.1):
 
-- **`docs/help/html/*.html`** — 250 pages (249 usable after a minimum-length filter), one per
-  resource / command / topic. The cleanest structured prose; the resource and field vocabulary
-  lives here.
-- **`samples/*.script`** — 88 files, split on the `%---------- <Name>` section banners into
-  586 section chunks. The working idioms — how a real, runnable script is actually shaped.
-- **gmat-script catalogue** (`load_catalog()`) — the structured type/field/enum/default data
-  (102 types, 2614 fields), already GMAT-free. The exact vocabulary as data, highest precision.
-  Not embedded in this proof (kept dependency-light), but a first-class Tier-1 source for the
-  real ingest layer, embedded as per-type / per-field records.
+- **`docs/help/html/*.html`** — 249 usable pages: the resource/command **reference** pages
+  *and* the **tutorial / how-to / chapter** pages (`SimulatingAnOrbit`, `SimpleOrbitTransfer`,
+  `Mars_B_Plane_Targeting`, the `Tut_*` set, 65 `ch*` chapters). The tutorials are the GMAT-side
+  intent→script bridge and are already part of this source. Chunk **per field-section**, not
+  per-page (per-page is too coarse — see Forward notes).
+- **`samples/*.script`** — 88 files, split on the `%---------- <Name>` section banners (586
+  section chunks). The working idioms — how a real, runnable script is shaped.
+- **`samples/userfunctions/*.gmf`** — 9 GmatFunction files: function-authoring idioms (inputs /
+  outputs / `Global`), the one script form the `.script` samples don't show.
+- **gmat-script catalogue** (`load_catalog()`) — structured type/field/enum/default data
+  (102 types, 2614 fields), GMAT-free; embedded as per-type / per-field records. The help
+  field-table **descriptions** (units, allowed values) ship alongside it as prose — the
+  catalogue gives the *shape*, the help text gives the *meaning*.
+- **Domain notes** (hand-written) — distilled modeling semantics and gotchas: the intent→
+  construct mapping and the pitfalls the linter catches (literal-only Initialization, the
+  body-vs-CoordinateSystem dependency on parameters, hardware-fields-not-reportable, the
+  logical-operator rules). Seeded from the workspace's **gmat-script** and
+  **gmat-orbital-mechanics** skill references (and the conceptual parts of **gmat-general** —
+  mission planning, the resource/command catalogues). Adapted into the repo as
+  `corpus/domain-notes/` (MIT), *not* read in place from the skills.
 
-Tier 2 (deferred):
+Excluded (to keep the corpus high-signal):
 
-- **`docs/GMAT_UsersGuide.pdf`** — broad conceptual prose, but PDF extraction is noisier and
-  heavier than the HTML help. Revisit only if help + samples coverage proves insufficient.
+- **`docs/GMAT_UsersGuide.pdf`** — the same DocBook source as the help HTML, just monolithic
+  (1299 pages) with extraction noise; its tutorials are already in the help HTML. Adds bulk,
+  not coverage.
+- **The internal spec PDFs** (`GMATMathSpec`, `GMAT-Architectural-Specification`,
+  `GMATEstimationSpecification`, `GMAT_OptimalControl_Specification`, `GMAT_V&V_*`, …) —
+  low-level / internal, not about authoring scripts.
+- **gmat-python skill notes** — the `gmatpy` Python API; folding them in would pollute the
+  `.script` corpus with Python idioms and risk the model emitting Python where it should emit a
+  script.
+- **Generic astrodynamics theory** — the model already has it; numeric computation is
+  astrodynamics-mcp's job, not the corpus's. Only the GMAT-contextual semantics earn a place.
 
-Chunk granularity: help = per-page to start (per-field-section is the obvious refinement — see
-Forward notes); sample = per-section banner block; catalogue = per-type / per-field record.
+A note on size: the corpus is small, and that is fine for RAG — retrieval precision depends on
+covering the right *dimensions* (vocabulary, idioms, semantics, gotchas), not raw byte count. A
+tight, well-chunked, high-signal corpus beats a large noisy one; the User's Guide PDF would add
+bulk and noise, not coverage.
 
 ## Ship-vs-build (D2)
 
-**Ship chunked text; build the FAISS index on first use; cache under XDG.** Rationale, grounded
-in the proof numbers below:
+Separate three artifacts; the user must never need the first:
 
-- The corpus is small — full chunk text is 2.6 MiB (compresses well), the full flat float32
-  index is 1.2 MiB.
-- Building is cheap — ~5 s on CPU to embed all 835 chunks; the FAISS build itself is ~1 ms.
-- The embedding model must be loaded at **query** time to embed the user's request, so its
-  one-time ~130 MiB download is unavoidable regardless of ship-vs-build. A prebuilt index would
-  therefore save only the ~5 s build, at the cost of locking the index to one model + dimension.
-- Shipping text keeps the base install GMAT-free (no GMAT needed to build the index) and lets
-  the index rebuild deterministically when the embedder is bumped.
+| Artifact | From | Needs a GMAT install? |
+|---|---|---|
+| (a) raw sources (help HTML, samples, catalogue) | a GMAT install | yes |
+| (b) chunked corpus **text** (extracted + cleaned from a) | derived from (a) | yes, to *create* it |
+| (c) FAISS **index** (embeddings of b) | the embedding model | no — only the embedder |
 
-A prebuilt index can still be shipped later as an optional fast-path; it is not needed for v0.1.
+Decision:
+
+- **(b) is extracted by the maintainers at build time** from a GMAT install and shipped in the
+  package — exactly the gmat-script pattern (it ships `fields-R2026a.json`, reflected from GMAT
+  at build time, so its consumers are GMAT-free). Apache-2.0 permits the redistribution.
+  **The user therefore never needs a GMAT install or its discovery.**
+- **Ship both (b) the text and (c) a prebuilt index** (for the default embedder). Both are tiny
+  — 2.6 MiB text + 1.2 MiB index ≈ 3.8 MiB.
+- **Rebuild the index on first use only as a fallback** — when the user overrides the default
+  embedder, or the shipped corpus/catalogue changes. Rebuilding needs the embedding model
+  (~130 MiB, downloaded), **not** GMAT.
+
+Why ship the prebuilt index, not just the text:
+
+- **Reproducibility.** v0.1's correctness surface is a *deterministic* eval / leaderboard. A
+  rebuilt index can vary at the margins (BLAS / architecture / library float differences flipping
+  near-tied retrievals); a shipped index is byte-identical for everyone.
+- **Instant first query.** The ~5 s embed becomes the fallback-only cost.
+- **Negligible cost.** 1.2 MiB; and the embedder must download anyway for query-time embedding,
+  so a prebuilt index adds no *new* dependency.
+
+Ship-some / build-some by source (v0.2 refinement): help + samples ship as frozen text, but the
+**catalogue** slice can be regenerated from the installed **gmat-script** dependency at
+index-build time, so it tracks the gmat-script version and never goes stale. v0.1 keeps it
+simple — ship all of (b) frozen plus the prebuilt index; adopt the catalogue regeneration later.
 
 ## Proof
 
 Script: [`v1_corpus_proof.py`](./v1_corpus_proof.py) — ingest → chunk → embed → FAISS →
 round-trip → measure. Portable (corpus via `--gmat-root` / `GMAT_ROOT`); deps
-`sentence-transformers` + `faiss-cpu` (not base deps — install in a throwaway env).
+`sentence-transformers` + `faiss-cpu` (not base deps — install in a throwaway env). The build
+cost it measures is the **fallback** path (the maintainers' build-time index is the default).
 
 ```
 python spikes/v1_corpus_proof.py --gmat-root <gmat-install>
 ```
 
-Full-corpus run (R2026a, `BAAI/bge-small-en-v1.5`, CPU):
+Full-corpus run on the help-pages + samples slice (R2026a, `BAAI/bge-small-en-v1.5`, CPU):
 
 | metric | value |
 |---|---|
@@ -93,6 +145,9 @@ Full-corpus run (R2026a, `BAAI/bge-small-en-v1.5`, CPU):
 | index build time | 0.001 s |
 | FAISS index size | **1.22 MiB** (flat float32) |
 | raw chunk-text size | **2.61 MiB** (json, uncompressed) |
+
+(The `.gmf`, catalogue, and domain-notes additions add little volume — a handful of small files
+and structured records — so the numbers above bound the order of magnitude.)
 
 Round-trip sanity (3 NL queries, top hit shown) — retrieval is topically correct:
 
@@ -105,11 +160,15 @@ Embeddings are deterministic for a pinned model, so the index rebuilds identical
 
 ## Forward notes (for the RAG ingest + retriever work)
 
-- **Chunk granularity.** Per-page help chunks are coarse — the semi-major-axis query's top hit
-  was the visualization-properties page rather than the orbit-state page. Splitting help pages
-  per field/section will sharpen retrieval; the retriever should tune this.
-- **Catalogue as structured records.** Embed the gmat-script catalogue as per-type/per-field
-  records — the highest-precision vocabulary source, and the anti-hallucination lever.
+- **Finer help chunking.** Per-page help chunks are coarse — the semi-major-axis query's top hit
+  was the visualization-properties page rather than the orbit-state page. Split help pages per
+  field/section.
+- **Catalogue as structured records,** the highest-precision vocabulary source; consider
+  regenerating it from the gmat-script dependency at build time (the by-source split above).
+- **Domain notes** seed from the gmat-script + gmat-orbital-mechanics (+ gmat-general) skill
+  references; adapt into `corpus/domain-notes/` (MIT), don't couple to the workspace skills.
+- **Prebuilt index** is a release-time build artifact (re-generate and re-ship when the corpus
+  or default embedder changes), like any compiled artifact.
 - **Attribution.** Ship `THIRD-PARTY-NOTICES` with GMAT's Apache-2.0 attribution; landed by the
   scaffold / design freeze.
 - **BGE convention.** Prefix queries (not passages) with the BGE retrieval instruction, as the
