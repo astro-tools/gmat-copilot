@@ -1,0 +1,241 @@
+{
+  "models": [
+    {
+      "id": "openai/gpt-4.1-mini",
+      "M": 6,
+      "tier": "Low",
+      "verdicts": {
+        "leo_circular.good.script": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "leo_circular.sem_bad.script": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "iss_groundtrack.good.script": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "iss_groundtrack.sem_bad.script": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "raise_apogee.good.script": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "raise_apogee.sem_bad.script": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "sun_sync.good.script": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "sun_sync.sem_bad.script": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "target_apogee.good.script": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "target_apogee.sem_bad.script": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "oem_ephem.good.script": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "oem_ephem.sem_bad.script": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      }
+    },
+    {
+      "id": "openai/gpt-4o-mini",
+      "M": 3,
+      "tier": "Low",
+      "verdicts": {
+        "leo_circular.good.script": [
+          true,
+          true,
+          true
+        ],
+        "leo_circular.sem_bad.script": [
+          false,
+          false,
+          false
+        ],
+        "iss_groundtrack.good.script": [
+          true,
+          true,
+          true
+        ],
+        "iss_groundtrack.sem_bad.script": [
+          false,
+          false,
+          false
+        ],
+        "raise_apogee.good.script": [
+          false,
+          false,
+          false
+        ],
+        "raise_apogee.sem_bad.script": [
+          false,
+          false,
+          false
+        ],
+        "sun_sync.good.script": [
+          true,
+          true,
+          true
+        ],
+        "sun_sync.sem_bad.script": [
+          false,
+          false,
+          false
+        ],
+        "target_apogee.good.script": [
+          true,
+          true,
+          true
+        ],
+        "target_apogee.sem_bad.script": [
+          false,
+          false,
+          false
+        ],
+        "oem_ephem.good.script": [
+          true,
+          true,
+          true
+        ],
+        "oem_ephem.sem_bad.script": [
+          false,
+          false,
+          false
+        ]
+      }
+    },
+    {
+      "id": "openai/gpt-4.1",
+      "M": 3,
+      "tier": "High",
+      "verdicts": {
+        "leo_circular.good.script": [
+          true,
+          true,
+          true
+        ],
+        "leo_circular.sem_bad.script": [
+          false,
+          false,
+          false
+        ],
+        "iss_groundtrack.good.script": [
+          true,
+          true,
+          true
+        ],
+        "iss_groundtrack.sem_bad.script": [
+          false,
+          false,
+          false
+        ],
+        "raise_apogee.good.script": [
+          true,
+          true,
+          true
+        ],
+        "raise_apogee.sem_bad.script": [
+          false,
+          false,
+          false
+        ],
+        "sun_sync.good.script": [
+          true,
+          true,
+          true
+        ],
+        "sun_sync.sem_bad.script": [
+          false,
+          false,
+          false
+        ],
+        "target_apogee.good.script": [
+          true,
+          true,
+          true
+        ],
+        "target_apogee.sem_bad.script": [
+          false,
+          false,
+          false
+        ],
+        "oem_ephem.good.script": [
+          true,
+          true,
+          true
+        ],
+        "oem_ephem.sem_bad.script": [
+          false,
+          false,
+          false
+        ]
+      }
+    }
+  ]
+}

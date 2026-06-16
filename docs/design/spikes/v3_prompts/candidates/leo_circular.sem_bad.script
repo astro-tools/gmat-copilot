@@ -1,0 +1,26 @@
+Create Spacecraft Sat;
+Sat.DateFormat = UTCGregorian;
+Sat.Epoch = '01 Jan 2025 12:00:00.000';
+Sat.CoordinateSystem = EarthMJ2000Eq;
+Sat.DisplayStateType = Keplerian;
+Sat.SMA = 42164;
+Sat.ECC = 0;
+Sat.INC = 0;
+Sat.RAAN = 0;
+Sat.AOP = 0;
+Sat.TA = 0;
+
+Create ForceModel FM;
+FM.CentralBody = Earth;
+FM.PrimaryBodies = {Earth};
+
+Create Propagator Prop;
+Prop.FM = FM;
+
+Create ReportFile rf;
+rf.Filename = 'out.report';
+rf.Add = {Sat.Earth.Altitude, Sat.Earth.SMA};
+
+BeginMissionSequence;
+Propagate Prop(Sat) {Sat.ElapsedDays = 1};
+Report rf Sat.Earth.Altitude Sat.Earth.SMA;
