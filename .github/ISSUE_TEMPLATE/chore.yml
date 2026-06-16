@@ -1,0 +1,23 @@
+name: Chore
+description: Tooling, infrastructure, or hygiene.
+title: "<short summary>"
+labels: ["type:chore"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: The change to make.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      value: |
+        - [ ]
+        - [ ]

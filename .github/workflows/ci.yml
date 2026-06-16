@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ['3.10', '3.11', '3.12']
+        include:
+          - os: windows-latest
+            python-version: '3.12'
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --all-groups
+      - run: uv run pytest -m "not eval_smoke" --cov --cov-report=term-missing
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: '3.12'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --all-groups
+      - run: uv run ruff check
+      - run: uv run ruff format --check
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: '3.12'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --all-groups
+      - run: uv run mypy
+
+  eval-smoke:
+    name: eval smoke (recorded, deterministic)
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: '3.12'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --all-groups
+      # Replays recorded completions + judge verdicts. Zero model calls, zero quota.
+      - run: uv run pytest -m eval_smoke
+
+  gated-eval:
+    name: gated eval (live, GitHub Models)
+    # Subset on PRs, full on manual dispatch. Wired as a stub until the eval prompt-set lands.
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      models: read
+      contents: read
+    env:
+      UV_PYTHON: '3.12'
+      MODELS_PAT: ${{ secrets.MODELS_PAT }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --all-groups
+      - run: uv run gmat-copilot eval --live
+
+  minimal-install:
+    name: minimal install (no extras)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install .
+      - name: import cleanly with no extras
+        run: python -c "import gmat_copilot; print(gmat_copilot.__version__)"
+      - name: provider SDKs and the GMAT stack must not be pulled
+        run: |
+          python - <<'PY'
+          import importlib.util as u
+          for mod in ("anthropic", "openai", "ollama", "gmat_run"):
+              assert u.find_spec(mod) is None, f"{mod} leaked into the base install"
+          print("base install is light: no provider SDK, no GMAT stack")
+          PY
+
+  extras-smoke:
+    name: extras resolve and import
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: '3.12'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --all-groups --all-extras
+      - run: uv run python -c "import anthropic, openai, ollama; import gmat_copilot; print('extras import OK')"

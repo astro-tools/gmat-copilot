@@ -1,0 +1,26 @@
+[
+  {
+    "id": "leo_circular",
+    "difficulty": "easy",
+    "request": "Set up a spacecraft in a 500 km circular low-Earth orbit at 51.6 degrees inclination, propagate for one day, and report the altitude and semi-major axis.",
+    "intent": "A single spacecraft on a ~500 km circular LEO (SMA about 6878 km, ECC about 0, inclination 51.6 deg), propagated for about one day, with a ReportFile recording altitude and semi-major axis.",
+    "structural": {
+      "required_types": [
+        "Spacecraft",
+        "Propagator",
+        "ReportFile"
+      ],
+      "required_fields": {
+        "Spacecraft": [
+          "SMA",
+          "ECC",
+          "INC"
+        ]
+      },
+      "required_commands": [
+        "Propagate",
+        "Report"
+      ]
+    }
+  }
+]

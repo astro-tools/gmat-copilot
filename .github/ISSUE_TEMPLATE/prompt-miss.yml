@@ -1,0 +1,52 @@
+name: A prompt that should have worked but didn't
+description: A request that produced a wrong, rejected, or missing script.
+title: "<short summary>"
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: request
+    attributes:
+      label: The request
+      description: The natural-language prompt you gave, verbatim.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model selector
+      description: The provider:model you used (never paste API keys).
+      placeholder: anthropic:claude-...
+    validations:
+      required: true
+  - type: dropdown
+    id: failure
+    attributes:
+      label: What went wrong
+      options:
+        - No script was produced
+        - A valid script was rejected by the lint gate (false positive)
+        - The script linted clean but modelled the wrong mission
+        - The script used the wrong output / format
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: generated
+    attributes:
+      label: The generated script (if any)
+      render: text
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: The script or behaviour you were after.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: gmat-copilot version
+      placeholder: 0.1.0
+    validations:
+      required: true

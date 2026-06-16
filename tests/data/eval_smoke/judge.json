@@ -1,0 +1,9 @@
+{
+  "openai/gpt-4.1-mini": {
+    "leo_circular": [
+      true,
+      true,
+      true
+    ]
+  }
+}
