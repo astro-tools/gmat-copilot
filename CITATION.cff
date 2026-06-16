@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use gmat-copilot in academic work, please cite it using the metadata below."
+title: gmat-copilot
+abstract: >-
+  gmat-copilot is a model-agnostic Python library and CLI that turns a natural-language request into
+  a GMAT mission script. Generation is retrieval-grounded in the GMAT documentation and validated
+  against a static linter, through a provider abstraction with no default model. Generation and
+  validation need no GMAT install.
+type: software
+authors:
+  - given-names: Dimitrije
+    family-names: Jankovic
+version: 0.1.0
+license: MIT
+repository-code: "https://github.com/astro-tools/gmat-copilot"
+url: "https://github.com/astro-tools/gmat-copilot"
+keywords:
+  - gmat
+  - llm
+  - code-generation
+  - astrodynamics
+  - mission-analysis

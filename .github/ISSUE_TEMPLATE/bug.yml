@@ -1,0 +1,40 @@
+name: Bug report
+description: Something does not work as documented.
+title: "<short summary>"
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What went wrong, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: The smallest request, script, or code that triggers it.
+      render: python
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model selector
+      description: The provider:model you used, if relevant (never paste API keys).
+      placeholder: anthropic:claude-...
+  - type: input
+    id: version
+    attributes:
+      label: gmat-copilot version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Linux, macOS, Windows]
+    validations:
+      required: true

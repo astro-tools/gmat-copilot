@@ -1,0 +1,3 @@
+# Byte-exact test fixtures must survive EOL normalisation on Windows checkouts.
+tests/data/** -text
+*.script -text
