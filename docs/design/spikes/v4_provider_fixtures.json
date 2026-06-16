@@ -1,0 +1,60 @@
+{
+  "github:openai/gpt-4.1-mini:8ca6b83f4df44fc5": {
+    "text": "Resources\n{\"Name\":\"Earth\",\"Type\":\"Planet\",\"Radius\":6371,\"Mu\":398600.4418}\n{\"Name\":\"Sat\",\"Type\":\"Satellite\",\"Parent\":\"Earth\",\"Class\":\"SPHERICAL\",\"Radius\":1,\"Mass\":1000,\"Orbit\":{\"SMA\":6871,\"ECC\":0,\"INC\":51.6,\"RAAN\":0,\"AOP\":0,\"TA\":0}}\n\nBeginMissionSequence\nPropagate Sat 86400\nReport Sat Altitude\nReport Sat SMA",
+    "usage": {
+      "completion_tokens": 104,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 110,
+        "engine_ttft_ms": 12440,
+        "engine_ttlt_ms": 23889,
+        "pre_inference_ms": 107,
+        "service_tbt_ms": 153,
+        "service_ttft_ms": 12744,
+        "service_ttlt_ms": 18668,
+        "total_duration_ms": 28570,
+        "user_visible_ttft_ms": 12637
+      },
+      "prompt_tokens": 73,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 177
+    }
+  },
+  "github:openai/gpt-4.1-mini:b228dcef77025e95": {
+    "text": "resources\nBeginMissionSequence\nSetOrbit 500 500\nImpulsiveBurn prograde 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+    "usage": {
+      "completion_tokens": 900,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": 0
+      },
+      "latency_checkpoint": {
+        "engine_tbt_ms": 76,
+        "engine_ttft_ms": 12831,
+        "engine_ttlt_ms": 81572,
+        "pre_inference_ms": 129,
+        "service_tbt_ms": 84,
+        "service_ttft_ms": 13450,
+        "service_ttlt_ms": 76245,
+        "total_duration_ms": 89265,
+        "user_visible_ttft_ms": 13320
+      },
+      "prompt_tokens": 70,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0
+      },
+      "total_tokens": 970
+    }
+  }
+}
