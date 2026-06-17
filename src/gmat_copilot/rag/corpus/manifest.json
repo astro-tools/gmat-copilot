@@ -1,0 +1,14 @@
+{
+  "embedder": "BAAI/bge-small-en-v1.5",
+  "dim": 384,
+  "n_chunks": 2144,
+  "chunks_by_kind": {
+    "help": 1427,
+    "sample": 586,
+    "gmf": 9,
+    "catalogue": 102,
+    "domain-note": 20
+  },
+  "gmat_version": "R2026a",
+  "corpus_sha256": "7a7b4df6257d0f5fada134caf4892170214237a836f503e53fb03bad1d8e50a4"
+}

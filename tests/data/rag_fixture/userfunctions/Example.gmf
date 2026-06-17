@@ -1,0 +1,6 @@
+function [doubled] = Example(value)
+
+% A tiny GmatFunction fixture exercising the .gmf ingest path.
+Create Variable doubled;
+BeginMissionSequence;
+doubled = value * 2;

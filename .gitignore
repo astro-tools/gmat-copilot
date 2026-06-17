@@ -21,8 +21,8 @@ coverage.xml
 # Docs build
 site/
 
-# Model / index artefacts (built at first use, never committed)
-*.faiss
+# Fallback-rebuilt indices live in the XDG cache, outside the repo; the shipped
+# prebuilt index (src/gmat_copilot/rag/corpus/index.faiss) is a committed artifact.
 .cache/
 
 # Editors / OS
