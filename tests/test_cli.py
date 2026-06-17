@@ -6,11 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from gmat_copilot.cli import main
+from gmat_copilot.cli import _lint_summary, main
+from gmat_copilot.eval.runner import EvalReport, PromptOutcome
+from gmat_copilot.eval.scorer import StructuralResult
 from gmat_copilot.generate import _compose_prompt, draft
 from gmat_copilot.providers import RecordedProvider, prompt_key
 from gmat_copilot.rag import Retriever
-from gmat_copilot.result import RetrievalTrace
+from gmat_copilot.result import LintDiagnostic, LintReport, RetrievalTrace, Severity
 
 
 class _OfflineRetriever(Retriever):
@@ -233,3 +235,63 @@ def test_eval_record_errors_cleanly_without_credentials(
         encoding="utf-8",
     )
     assert main(["eval", "--record", str(tmp_path), "-m", "github:openai/gpt-4.1-mini"]) == 2
+
+
+_PROMPTS_JSON = '[{"id": "p", "request": "a LEO", "intent": "a LEO", "structural": {}}]'
+
+
+def _one_outcome_report() -> EvalReport:
+    """An EvalReport with a single passing outcome, for the report-printing CLI paths."""
+    return EvalReport(
+        outcomes=(
+            PromptOutcome(
+                id="p1",
+                difficulty="easy",
+                structural=StructuralResult(passed=True),
+                judge=True,
+                passed=True,
+            ),
+        )
+    )
+
+
+def test_eval_live_prints_the_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The success path: with the live run stubbed, --live prints the report and exits 0.
+    monkeypatch.setattr(
+        "gmat_copilot.cli.run_live", lambda prompts, **kwargs: _one_outcome_report()
+    )
+    prompts = tmp_path / "prompts.json"
+    prompts.write_text(_PROMPTS_JSON, encoding="utf-8")
+    assert (
+        main(["eval", "--live", "--prompts", str(prompts), "-m", "github:openai/gpt-4.1-mini"]) == 0
+    )
+    assert "pass-rate: 100%" in capsys.readouterr().out
+
+
+def test_eval_record_prints_the_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "gmat_copilot.cli.record_bundle",
+        lambda prompts, bundle_dir, **kwargs: _one_outcome_report(),
+    )
+    (tmp_path / "prompts.json").write_text(_PROMPTS_JSON, encoding="utf-8")
+    assert main(["eval", "--record", str(tmp_path), "-m", "github:openai/gpt-4.1-mini"]) == 0
+    assert "pass-rate: 100%" in capsys.readouterr().out
+
+
+def test_lint_summary_counts_each_severity() -> None:
+    report = LintReport(
+        diagnostics=(
+            LintDiagnostic(rule="r1", severity=Severity.ERROR, message="m", line=1, column=1),
+            LintDiagnostic(rule="r2", severity=Severity.WARNING, message="m", line=2, column=1),
+            LintDiagnostic(rule="r3", severity=Severity.INFO, message="m", line=3, column=1),
+        )
+    )
+    assert _lint_summary(report) == "1 error(s), 1 warning(s), 1 info(s)"
+
+
+def test_lint_summary_clean() -> None:
+    assert _lint_summary(LintReport()) == "clean"

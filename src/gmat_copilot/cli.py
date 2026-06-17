@@ -84,7 +84,7 @@ def _cmd_draft(args: argparse.Namespace) -> int:
         _print_diagnostics(exc.result.lint)
         print(f"gmat-copilot: lint: rejected: {_lint_summary(exc.result.lint)}", file=sys.stderr)
         return 1
-    except (NotImplementedError, ProviderError) as exc:
+    except ProviderError as exc:
         print(f"gmat-copilot: {exc}", file=sys.stderr)
         return 2
     if not result.lint.clean:
