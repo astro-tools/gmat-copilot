@@ -46,11 +46,15 @@ result.save("mission.script")
 From the command line:
 
 ```bash
-gmat-copilot draft "a sun-synchronous orbit at 700 km" --model anthropic:claude-...
+gmat-copilot "a sun-synchronous orbit at 700 km" --model anthropic:claude-... -o mission.script
 gmat-copilot validate mission.script
 ```
 
-API keys are read from the environment (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, …), never committed.
+The script is written to `-o` (default `mission.script`; `-o -` for stdout) and a concise lint
+summary is printed. Strict mode (the default) exits non-zero if the draft does not lint clean; pass
+`--permissive` to write the best-effort draft anyway. `gmat-copilot draft "<intent>"` is an alias of
+the bare form. API keys are read from the environment (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, …),
+never committed.
 
 ## Validation contract
 

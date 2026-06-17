@@ -52,7 +52,13 @@ the provider/model/usage.
 ## Draft from the CLI
 
 ```bash
-gmat-copilot draft "a sun-synchronous orbit at 700 km" --model anthropic:claude-...
+gmat-copilot "a sun-synchronous orbit at 700 km" --model anthropic:claude-... -o mission.script
 gmat-copilot validate mission.script        # lint an existing script
 gmat-copilot validate mission.script --permissive
 ```
+
+The script is written to `-o` (default `mission.script`; `-o -` writes to stdout) and a concise lint
+summary is printed to stderr. Strict mode (the default) rejects a draft that does not lint clean and
+exits non-zero; `--permissive` writes the best-effort draft with its diagnostics attached. With no
+`--model` the tool lists the providers it can reach. `gmat-copilot draft "<intent>"` is an alias of
+the bare form.
