@@ -188,7 +188,7 @@ def test_eval_recorded_replays_bundle(
 ) -> None:
     assert main(["eval", "--recorded", str(eval_bundle), "-m", "openai/gpt-4.1-mini"]) == 0
     out = capsys.readouterr().out
-    assert "pass-rate: 100%" in out
+    assert "pass-rate: 80%" in out  # the frozen 51-prompt aggregate (41/51)
     assert "[easy" in out  # the per-prompt line shows the difficulty tier
 
 
