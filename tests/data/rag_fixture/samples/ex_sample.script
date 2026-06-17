@@ -1,0 +1,18 @@
+%
+%  ex_sample — a tiny fixture mission script for the corpus chunker tests
+%
+
+%----------------------------------------
+%---------- Spacecraft
+%----------------------------------------
+Create Spacecraft testSat;
+testSat.SMA = 7000;
+testSat.ECC = 0.001;
+testSat.INC = 28.5;
+
+%----------------------------------------
+%---------- Propagators
+%----------------------------------------
+Create ForceModel fm;
+Create Propagator prop;
+prop.FM = fm;

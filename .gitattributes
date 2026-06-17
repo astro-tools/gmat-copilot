@@ -1,3 +1,7 @@
 # Byte-exact test fixtures must survive EOL normalisation on Windows checkouts.
 tests/data/** -text
 *.script -text
+
+# The shipped RAG corpus (prebuilt FAISS index + chunk text) is a byte-stable artifact;
+# keep it out of EOL normalisation so the index stays identical across platforms.
+src/gmat_copilot/rag/corpus/** -text
