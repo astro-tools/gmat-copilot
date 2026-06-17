@@ -76,6 +76,18 @@ def invalid_script() -> str:
 
 
 @pytest.fixture
+def hallucinated_field_script() -> str:
+    """A well-formed script with a hallucinated field — a single ``unknown-field`` WARNING."""
+    return (DATA / "hallucinated_field.script").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def hallucinated_resource_script() -> str:
+    """A script with an invented resource type — a single ``unknown-resource-type`` ERROR."""
+    return (DATA / "hallucinated_resource.script").read_text(encoding="utf-8")
+
+
+@pytest.fixture
 def eval_bundle() -> Path:
     """The committed deterministic recorded-eval bundle directory."""
     return DATA / "eval_smoke"

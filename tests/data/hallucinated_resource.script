@@ -1,0 +1,29 @@
+% A LEO script with one hallucinated resource type: 'Satellite' (GMAT's type is 'Spacecraft').
+% gmat-script reports a single 'unknown-resource-type' ERROR — the strict gate rejects on it,
+% while permissive returns the draft with the error attached.
+Create Satellite Sat;
+Sat.DateFormat = UTCGregorian;
+Sat.Epoch = '01 Jan 2025 12:00:00.000';
+Sat.CoordinateSystem = EarthMJ2000Eq;
+Sat.DisplayStateType = Keplerian;
+Sat.SMA = 7000;
+Sat.ECC = 0.001;
+Sat.INC = 28.5;
+Sat.RAAN = 0;
+Sat.AOP = 0;
+Sat.TA = 0;
+
+Create ForceModel FM;
+FM.CentralBody = Earth;
+FM.PrimaryBodies = {Earth};
+
+Create Propagator Prop;
+Prop.FM = FM;
+
+Create ReportFile rf;
+rf.Filename = 'out.report';
+rf.Add = {Sat.A1ModJulian, Sat.Earth.SMA};
+
+BeginMissionSequence;
+Propagate Prop(Sat) {Sat.ElapsedSecs = 600};
+Report rf Sat.A1ModJulian Sat.Earth.SMA;
