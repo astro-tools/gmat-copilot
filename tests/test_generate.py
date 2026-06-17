@@ -104,6 +104,46 @@ def test_permissive_returns_an_unclean_draft_with_diagnostics(invalid_script: st
     assert result.lint.diagnostics  # attached, not raised
 
 
+def test_strict_rejects_a_hallucinated_field_on_a_warning(hallucinated_field_script: str) -> None:
+    # The DoD's headline case: a hallucinated field lints only as a WARNING, yet strict must still
+    # reject it (D5) — distinct from the parse-ERROR path above.
+    with pytest.raises(DraftRejected) as excinfo:
+        draft(
+            "a LEO with a mistyped field",
+            model="m",
+            provider=StubProvider(hallucinated_field_script),
+            retriever=StubRetriever(),
+        )
+    rejected = excinfo.value.result
+    assert rejected.lint.warnings  # rejected on a warning, not an error
+    assert rejected.lint.errors == ()
+    assert rejected.lint.blocking(strict=True)
+
+
+def test_permissive_warns_on_a_hallucinated_field(hallucinated_field_script: str) -> None:
+    result = draft(
+        "a LEO with a mistyped field",
+        model="m",
+        strict=False,
+        provider=StubProvider(hallucinated_field_script),
+        retriever=StubRetriever(),
+    )
+    assert result.script == hallucinated_field_script
+    assert result.lint.warnings  # attached, not raised
+    assert result.lint.blocking(strict=False) == ()
+
+
+def test_strict_rejects_a_hallucinated_resource(hallucinated_resource_script: str) -> None:
+    with pytest.raises(DraftRejected) as excinfo:
+        draft(
+            "a LEO with an invented resource type",
+            model="m",
+            provider=StubProvider(hallucinated_resource_script),
+            retriever=StubRetriever(),
+        )
+    assert excinfo.value.result.lint.errors
+
+
 def test_retrieval_trace_flows_into_the_result(valid_script: str) -> None:
     chunks = (RetrievalChunk(source="help/Spacecraft.html", score=0.9, text="Create Spacecraft"),)
     result = draft(

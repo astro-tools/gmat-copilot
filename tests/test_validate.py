@@ -45,3 +45,33 @@ def test_diagnostics_carry_location(invalid_script: str) -> None:
     assert diagnostic.line >= 1
     assert diagnostic.column >= 1
     assert diagnostic.rule
+
+
+def test_hallucinated_field_is_a_real_warning(hallucinated_field_script: str) -> None:
+    # Driven through the real gmat-script linter, not a hand-built diagnostic: a hallucinated
+    # field is a WARNING that strict rejects and permissive tolerates (D5).
+    report = validate(hallucinated_field_script)
+    assert not report.clean
+    assert report.errors == ()
+    assert len(report.warnings) == 1
+    warning = report.warnings[0]
+    assert warning.rule == "unknown-field"
+    assert warning.severity is Severity.WARNING
+    assert warning.line >= 1
+    assert warning.column >= 1
+    assert "DryMas" in warning.message  # the linter's message is mapped through faithfully
+    assert report.blocking(strict=True) == (warning,)
+    assert report.blocking(strict=False) == ()
+
+
+def test_hallucinated_resource_is_a_real_error(hallucinated_resource_script: str) -> None:
+    # An invented resource type is an ERROR — strict rejects it; permissive returns it attached.
+    report = validate(hallucinated_resource_script)
+    assert not report.clean
+    assert len(report.errors) == 1
+    error = report.errors[0]
+    assert error.rule == "unknown-resource-type"
+    assert error.severity is Severity.ERROR
+    assert "Satellite" in error.message
+    assert report.blocking(strict=True) == (error,)
+    assert report.blocking(strict=False) == ()
