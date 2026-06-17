@@ -46,8 +46,8 @@ print(result.provider, result.model, result.usage)
 result.save("mission.script")   # write the script to a file
 ```
 
-The returned [`CopilotResult`](api.md) carries the script, its lint report, the retrieval trace, and
-the provider/model/usage.
+The returned [`CopilotResult`](output-schema.md) carries the script, its lint report, the retrieval
+trace, and the provider/model/usage.
 
 ## Draft from the CLI
 
@@ -62,3 +62,10 @@ summary is printed to stderr. Strict mode (the default) rejects a draft that doe
 exits non-zero; `--permissive` writes the best-effort draft with its diagnostics attached. With no
 `--model` the tool lists the providers it can reach. `gmat-copilot draft "<intent>"` is an alias of
 the bare form.
+
+## Next
+
+- [Draft a Hohmann transfer](examples/hohmann.md) — a fuller worked example.
+- [Providers & auth](providers.md) — the model selectors and their credentials.
+- [Validation](validation.md) — the strict/permissive lint contract.
+- [Result schema](output-schema.md) — everything a draft returns.
