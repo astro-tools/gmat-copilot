@@ -17,7 +17,8 @@ from pathlib import Path
 
 from . import __version__
 from .eval.judge import JUDGE_MODEL
-from .eval.runner import run_recorded
+from .eval.prompts import load_prompts
+from .eval.runner import EvalReport, record_bundle, run_live, run_recorded
 from .generate import DraftRejected, draft
 from .providers import ProviderError
 from .result import LintReport
@@ -109,25 +110,56 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_eval_report(report: EvalReport) -> None:
+    """Print per-prompt outcomes, the per-tier pass-rates, and the aggregate."""
+    for outcome in report.outcomes:
+        structural = "PASS" if outcome.structural.passed else "FAIL"
+        verdict = "PASS" if outcome.passed else "FAIL"
+        print(
+            f"{outcome.id:28} [{outcome.difficulty:6}] structural={structural} "
+            f"judge={outcome.judge} -> {verdict}"
+        )
+    for tier, rate in sorted(report.pass_rate_by_tier.items()):
+        print(f"  {tier:6}: {rate:.0%}")
+    print(f"pass-rate: {report.pass_rate:.0%}")
+
+
 def _cmd_eval(args: argparse.Namespace) -> int:
     if args.recorded:
-        report = run_recorded(args.recorded, model=args.model)
-        for outcome in report.outcomes:
-            structural = "PASS" if outcome.structural.passed else "FAIL"
-            verdict = "PASS" if outcome.passed else "FAIL"
-            print(f"{outcome.id:28} structural={structural} judge={outcome.judge} -> {verdict}")
-        print(f"pass-rate: {report.pass_rate:.0%}")
+        _print_eval_report(run_recorded(args.recorded, model=args.model))
         return 0
-    if args.live:
-        print(
-            "gmat-copilot eval --live: no eval prompt-set is committed yet; the live evaluation "
-            "lands with the eval-suite work. Nothing to run.",
-            file=sys.stderr,
-        )
-        return 0
+    try:
+        if args.record:
+            prompts_path = args.prompts or Path(args.record) / "prompts.json"
+            report = record_bundle(
+                load_prompts(prompts_path),
+                args.record,
+                model=args.model,
+                judge_model=args.judge_model,
+                n=args.n,
+                pace=args.pace,
+            )
+            _print_eval_report(report)
+            return 0
+        if args.live:
+            if not args.prompts:
+                print("gmat-copilot eval --live: pass --prompts <path>", file=sys.stderr)
+                return 2
+            report = run_live(
+                load_prompts(args.prompts),
+                model=args.model,
+                judge_model=args.judge_model,
+                n=args.n,
+                pace=args.pace,
+            )
+            _print_eval_report(report)
+            return 0
+    except ProviderError as exc:
+        print(f"gmat-copilot: {exc}", file=sys.stderr)
+        return 2
     print(
-        "gmat-copilot eval: pass --recorded <bundle> to replay a recorded bundle, or --live once "
-        "the prompt-set lands.",
+        "gmat-copilot eval: pass --recorded <bundle> to replay deterministically, --live "
+        "--prompts <path> to run live, or --record <dir> to refresh a bundle's fixtures.",
         file=sys.stderr,
     )
     return 0
@@ -202,14 +234,33 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     eval_parser = sub.add_parser("eval", help="run the evaluation suite")
-    eval_parser.add_argument(
-        "--live", action="store_true", help="run live inference (needs a credential)"
+    mode = eval_parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--recorded", metavar="BUNDLE", help="replay a recorded eval bundle directory (no model)"
+    )
+    mode.add_argument("--live", action="store_true", help="run live inference (needs a credential)")
+    mode.add_argument(
+        "--record", metavar="DIR", help="run live and freeze the bundle's fixtures into DIR"
     )
     eval_parser.add_argument(
-        "--recorded", metavar="BUNDLE", help="replay a recorded eval bundle directory"
+        "--prompts",
+        metavar="PATH",
+        help="prompt-set JSON for --live (defaults to DIR/prompts.json for --record)",
     )
     eval_parser.add_argument(
-        "-m", "--model", default=JUDGE_MODEL, help="model selector for the run"
+        "-m",
+        "--model",
+        default=JUDGE_MODEL,
+        help="recorded-key model for --recorded, or a provider:model selector for --live/--record",
+    )
+    eval_parser.add_argument(
+        "--judge-model", default=JUDGE_MODEL, help="judge model for --live/--record"
+    )
+    eval_parser.add_argument(
+        "-n", type=int, default=3, help="judge votes per prompt for --live/--record (default 3)"
+    )
+    eval_parser.add_argument(
+        "--pace", type=float, default=0.0, help="seconds between model calls (free-tier pacing)"
     )
     return parser
 

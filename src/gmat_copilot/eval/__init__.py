@@ -2,21 +2,26 @@
 
 from __future__ import annotations
 
-from .judge import JUDGE_MODEL, judge, majority
+from .judge import JUDGE_MODEL, JUDGE_SYSTEM, judge, judge_verdicts, majority, parse_verdict
 from .prompts import EvalPrompt, StructuralSpec, load_prompts
-from .runner import EvalReport, PromptOutcome, run_recorded
+from .runner import EvalReport, PromptOutcome, record_bundle, run_live, run_recorded
 from .scorer import StructuralResult, structural_score
 
 __all__ = [
     "JUDGE_MODEL",
+    "JUDGE_SYSTEM",
     "EvalPrompt",
     "EvalReport",
     "PromptOutcome",
     "StructuralResult",
     "StructuralSpec",
     "judge",
+    "judge_verdicts",
     "load_prompts",
     "majority",
+    "parse_verdict",
+    "record_bundle",
+    "run_live",
     "run_recorded",
     "structural_score",
 ]
