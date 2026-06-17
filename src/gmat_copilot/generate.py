@@ -39,19 +39,58 @@ class DraftRejected(RuntimeError):
         )
 
 
-# The system framing: pins the task and the output contract so the model emits a script rather than
-# prose or an invented format. Grounding it in retrieved GMAT references curbs hallucinated names.
+# The system framing: pins the task, the GMAT script shape, and the output contract so the model
+# emits a valid script rather than prose or an invented format. The retrieved grounding curbs
+# hallucinated resource/field names; the worked example below curbs the other failure mode — an
+# invented procedural command syntax (`Prop.Propagate;`, `Report.Write;`), which the model otherwise
+# guesses because the reference grounding describes resources but rarely shows command syntax.
 _SYSTEM_PROMPT = (
     "You are a GMAT mission-script generator. Translate the user's request into a single, valid "
     "GMAT mission `.script`.\n"
     "\n"
+    "A GMAT script has two parts: resource creation, then a mission sequence. Create every "
+    "resource with `Create <Type> <Name>;` and set fields with `<Name>.<Field> = <value>;`, all "
+    "before `BeginMissionSequence`. The mission commands come after it.\n"
+    "\n"
+    "Mission commands are standalone statements — never methods or fields on a resource. Do NOT "
+    "write `Prop.Propagate;`, `Prop.PropagateFor = ...;`, `Report.Write;`, or "
+    "`EndMissionSequence;`; none of those are GMAT. The command forms are:\n"
+    "- Propagate: `Propagate <Propagator>(<Spacecraft>) {<StopCondition>};`, e.g. "
+    "`Propagate Prop(Sat) {Sat.ElapsedDays = 1};` or `Propagate Prop(Sat) {Sat.Apoapsis};`.\n"
+    "- Report:    `Report <ReportFile> <Param> <Param> ...;` — a ReportFile also lists outputs via "
+    "`<rf>.Add = {...};`, and its filename field is `Filename`.\n"
+    "- Maneuver:  `Maneuver <ImpulsiveBurn>(<Spacecraft>);`.\n"
+    "- Target:    `Target <DC>; Vary <DC>(...); Achieve <DC>(...); EndTarget;`.\n"
+    "\n"
     "Rules:\n"
     "- Output only the script — no prose, no explanation, no commentary outside the script.\n"
-    "- Declare every resource with a `Create` statement before any command references it, and "
-    "place all resource setup before `BeginMissionSequence`.\n"
+    "- A command's resources must exist: a `Propagate` needs a `Propagator`, a `Report` needs a "
+    "`ReportFile`. Create everything a command references before `BeginMissionSequence`.\n"
     "- Use only real GMAT resource types, fields, and commands. Prefer the resource types and "
     "field names shown in the grounding context below over guessing.\n"
-    "- Return the script inside a single fenced code block tagged `script`."
+    "- Return the script inside a single fenced code block tagged `script`.\n"
+    "\n"
+    "Example of the required shape (a different mission — follow the syntax, not the values):\n"
+    "Create Spacecraft Sat;\n"
+    "Sat.DisplayStateType = Keplerian;\n"
+    "Sat.SMA = 7000;\n"
+    "Sat.ECC = 0.01;\n"
+    "Sat.INC = 28.5;\n"
+    "Create ForceModel FM;\n"
+    "FM.PrimaryBodies = {Earth};\n"
+    "Create Propagator Prop;\n"
+    "Prop.FM = FM;\n"
+    "Create ImpulsiveBurn dv;\n"
+    "dv.Axes = VNB;\n"
+    "dv.Element1 = 0.1;\n"
+    "Create ReportFile rf;\n"
+    "rf.Filename = 'out.txt';\n"
+    "rf.Add = {Sat.Earth.SMA};\n"
+    "BeginMissionSequence;\n"
+    "Propagate Prop(Sat) {Sat.ElapsedSecs = 3600};\n"
+    "Maneuver dv(Sat);\n"
+    "Propagate Prop(Sat) {Sat.Apoapsis};\n"
+    "Report rf Sat.Earth.SMA;"
 )
 
 # The closing reminder of the output contract — repeated after the request so it is the last thing
