@@ -10,13 +10,14 @@ are imported lazily so importing the package stays light.
 
 from __future__ import annotations
 
-from ..result import RetrievalTrace
 from .embed import DEFAULT_EMBEDDER, BgeEmbedder, Embedder
 from .loader import CorpusIndex, SearchHit, load_corpus
+from .retriever import DEFAULT_TOKEN_BUDGET, Retriever, assemble_context
 from .schema import ChunkKind, CorpusChunk
 
 __all__ = [
     "DEFAULT_EMBEDDER",
+    "DEFAULT_TOKEN_BUDGET",
     "BgeEmbedder",
     "ChunkKind",
     "CorpusChunk",
@@ -24,25 +25,6 @@ __all__ = [
     "Embedder",
     "Retriever",
     "SearchHit",
+    "assemble_context",
     "load_corpus",
 ]
-
-
-class Retriever:
-    """Embeds a query and returns the most relevant corpus chunks (decision D2).
-
-    Loads the shipped corpus and prebuilt index for the default embedder, rebuilding on first use
-    only as a fallback (non-default embedder or a corpus change).
-    """
-
-    def __init__(self, embedder: str = DEFAULT_EMBEDDER, *, top_k: int = 8):
-        self.embedder = embedder
-        self.top_k = top_k
-
-    def retrieve(self, query: str, *, top_k: int | None = None) -> RetrievalTrace:
-        """Return the corpus chunks that ground *query*, most relevant first."""
-        raise NotImplementedError(
-            "query-time retrieval is not wired yet — the scaffold pins the retriever surface; the "
-            "corpus ingest, FAISS index, and loader are in place (load_corpus), and the retriever "
-            "wiring is the next RAG step"
-        )
