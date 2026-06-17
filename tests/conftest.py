@@ -89,5 +89,5 @@ def hallucinated_resource_script() -> str:
 
 @pytest.fixture
 def eval_bundle() -> Path:
-    """The committed deterministic recorded-eval bundle directory."""
-    return DATA / "eval_smoke"
+    """The committed deterministic recorded-eval bundle (the full 51-prompt suite)."""
+    return DATA / "eval"

@@ -1,0 +1,529 @@
+[
+  {
+    "id": "leo_circular",
+    "difficulty": "easy",
+    "request": "Set up a spacecraft in a 500 km circular low-Earth orbit at 51.6 degrees inclination, propagate for one day, and report the altitude and semi-major axis.",
+    "intent": "A single spacecraft on a ~500 km circular LEO (SMA about 6878 km, ECC about 0, inclination 51.6 deg), propagated for about one day, with a ReportFile recording altitude and semi-major axis.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator", "ReportFile"],
+      "required_fields": { "Spacecraft": ["SMA", "ECC", "INC"] },
+      "required_commands": ["Propagate", "Report"]
+    }
+  },
+  {
+    "id": "iss_groundtrack",
+    "difficulty": "easy",
+    "request": "Propagate the ISS for 90 minutes and report its geodetic latitude and longitude.",
+    "intent": "A spacecraft on an ISS-like LEO propagated for about 90 minutes (5400 s), with a ReportFile recording the spacecraft's latitude and longitude.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator", "ReportFile"],
+      "required_commands": ["Propagate", "Report"]
+    }
+  },
+  {
+    "id": "geo_stationary",
+    "difficulty": "easy",
+    "request": "Place a spacecraft in a geostationary orbit and propagate it for one day.",
+    "intent": "A spacecraft in a geostationary orbit: SMA about 42164 km, near-zero eccentricity, and near-zero inclination, propagated for about one day.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator"],
+      "required_fields": { "Spacecraft": ["SMA", "ECC", "INC"] },
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "molniya_orbit",
+    "difficulty": "easy",
+    "request": "Set up a Molniya orbit and propagate it for 12 hours.",
+    "intent": "A spacecraft on a Molniya orbit: highly eccentric (ECC about 0.74), critical inclination near 63.4 deg, argument of perigee near 270 deg, period about 12 hours, propagated for roughly half a day.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator"],
+      "required_fields": { "Spacecraft": ["ECC", "INC", "AOP"] },
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "propagate_one_period",
+    "difficulty": "easy",
+    "request": "Propagate a 600 km circular orbit for exactly one orbital period.",
+    "intent": "A ~600 km circular spacecraft propagated for one full orbital revolution, using a stop condition equivalent to one period (e.g. returning to periapsis/apoapsis or an elapsed time of about 5800 s).",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator"],
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "propagate_to_periapsis",
+    "difficulty": "easy",
+    "request": "Propagate an eccentric orbit to its next periapsis.",
+    "intent": "An eccentric spacecraft propagated until the next periapsis passage, i.e. a Propagate command whose stop condition is the spacecraft's Periapsis.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator"],
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "report_keplerian_elements",
+    "difficulty": "easy",
+    "request": "Set up a spacecraft and write its six Keplerian orbital elements to a report file.",
+    "intent": "A spacecraft whose six classical Keplerian elements (SMA, ECC, INC, RAAN, AOP, TA) are written to a ReportFile.",
+    "structural": {
+      "required_types": ["Spacecraft", "ReportFile"],
+      "required_commands": ["Report"]
+    }
+  },
+  {
+    "id": "orbit_view_leo",
+    "difficulty": "easy",
+    "request": "Visualize a low-Earth orbit in a 3D orbit view while propagating for one day.",
+    "intent": "A LEO spacecraft propagated for about a day with an OrbitView resource displaying the trajectory in 3D.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator", "OrbitView"],
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "ground_track_leo",
+    "difficulty": "easy",
+    "request": "Propagate a low-Earth orbit for one day and show its ground track.",
+    "intent": "A LEO spacecraft propagated for about a day with a GroundTrackPlot resource showing the sub-satellite ground track.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator", "GroundTrackPlot"],
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "cartesian_state",
+    "difficulty": "easy",
+    "request": "Define a spacecraft by its Cartesian position and velocity vectors and propagate it for one hour.",
+    "intent": "A spacecraft whose state is specified in Cartesian coordinates (X, Y, Z, VX, VY, VZ rather than Keplerian elements) and propagated for about one hour.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator"],
+      "required_fields": { "Spacecraft": ["X", "VX"] },
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "set_epoch_utc",
+    "difficulty": "easy",
+    "request": "Set a spacecraft's epoch to 01 Jun 2026 00:00:00 UTC and propagate it for one day.",
+    "intent": "A spacecraft whose initial epoch is set to 01 Jun 2026 in a UTC Gregorian date format, propagated for about one day.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator"],
+      "required_fields": { "Spacecraft": ["Epoch", "DateFormat"] },
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "spacecraft_dry_mass",
+    "difficulty": "easy",
+    "request": "Create a spacecraft with a dry mass of 850 kg in a 500 km circular orbit and propagate for one day.",
+    "intent": "A ~500 km circular spacecraft whose dry mass is set to 850 kg, propagated for about one day.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator"],
+      "required_fields": { "Spacecraft": ["DryMass"] },
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "polar_orbit",
+    "difficulty": "easy",
+    "request": "Set up a circular polar orbit at 800 km altitude and propagate for one day.",
+    "intent": "A near-circular spacecraft at about 800 km altitude (SMA about 7178 km) with an inclination near 90 degrees (polar), propagated for about one day.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator"],
+      "required_fields": { "Spacecraft": ["SMA", "INC"] },
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "propagate_three_days",
+    "difficulty": "easy",
+    "request": "Propagate a low-Earth orbit for three days.",
+    "intent": "A LEO spacecraft propagated for about three days of elapsed time.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator"],
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "report_apsis_altitudes",
+    "difficulty": "easy",
+    "request": "Report the apogee and perigee altitudes of an eccentric orbit.",
+    "intent": "An eccentric spacecraft with a ReportFile recording its apoapsis and periapsis radii or altitudes (the apogee and perigee).",
+    "structural": {
+      "required_types": ["Spacecraft", "ReportFile"],
+      "required_commands": ["Report"]
+    }
+  },
+  {
+    "id": "xy_plot_altitude",
+    "difficulty": "easy",
+    "request": "Plot a low-Earth orbit's altitude against time over one day.",
+    "intent": "A LEO spacecraft propagated for about a day with an XYPlot of altitude on the Y axis versus elapsed time on the X axis.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator", "XYPlot"],
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "equatorial_orbit",
+    "difficulty": "easy",
+    "request": "Set up a circular equatorial orbit at 700 km altitude and propagate for one day.",
+    "intent": "A near-circular spacecraft at about 700 km altitude (SMA about 7078 km) with an inclination of zero (equatorial), propagated for about one day.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator"],
+      "required_fields": { "Spacecraft": ["SMA", "INC"] },
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "report_orbital_period",
+    "difficulty": "easy",
+    "request": "Compute and report the orbital period of a 500 km circular orbit.",
+    "intent": "A ~500 km circular spacecraft whose orbital period is written to a ReportFile.",
+    "structural": {
+      "required_types": ["Spacecraft", "ReportFile"],
+      "required_commands": ["Report"]
+    }
+  },
+  {
+    "id": "report_with_headers",
+    "difficulty": "easy",
+    "request": "Propagate a LEO for one day and write its position to a report file with column headers enabled.",
+    "intent": "A LEO spacecraft propagated for about a day, with a ReportFile that has column headers turned on (WriteHeaders true) recording the spacecraft position.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator", "ReportFile"],
+      "required_fields": { "ReportFile": ["WriteHeaders"] },
+      "required_commands": ["Propagate", "Report"]
+    }
+  },
+  {
+    "id": "propagate_elapsed_secs",
+    "difficulty": "easy",
+    "request": "Propagate a spacecraft for exactly 3600 seconds.",
+    "intent": "A spacecraft propagated for one hour using an elapsed-seconds stop condition of about 3600 s.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator"],
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "raise_apogee",
+    "difficulty": "medium",
+    "request": "Raise the apogee of a 500 km circular orbit using a single prograde impulsive burn.",
+    "intent": "Starting from a ~500 km circular LEO, one prograde (along-velocity, +Element1 in a VNB burn) impulsive maneuver is applied that increases the orbit's apogee/energy.",
+    "structural": {
+      "required_types": ["Spacecraft", "ImpulsiveBurn"],
+      "required_commands": ["Maneuver"]
+    }
+  },
+  {
+    "id": "sun_sync",
+    "difficulty": "medium",
+    "request": "Set up a sun-synchronous orbit at about 700 km altitude.",
+    "intent": "A spacecraft in a sun-synchronous orbit at ~700 km altitude: SMA about 7078 km, near-circular, with the sun-synchronous retrograde inclination near 98 degrees.",
+    "structural": {
+      "required_types": ["Spacecraft"],
+      "required_fields": { "Spacecraft": ["SMA", "INC"] }
+    }
+  },
+  {
+    "id": "lower_perigee",
+    "difficulty": "medium",
+    "request": "Lower the perigee of a 600 km circular orbit with a single retrograde impulsive burn at apogee.",
+    "intent": "Starting from a ~600 km circular orbit, one retrograde (against-velocity, -Element1 in VNB) impulsive maneuver applied near apogee that lowers the perigee.",
+    "structural": {
+      "required_types": ["Spacecraft", "ImpulsiveBurn"],
+      "required_commands": ["Maneuver"]
+    }
+  },
+  {
+    "id": "plane_change_burn",
+    "difficulty": "medium",
+    "request": "Change a circular orbit's inclination by 10 degrees using a single out-of-plane impulsive burn.",
+    "intent": "A circular spacecraft with one impulsive maneuver directed out of plane (an Element2/normal component in VNB, not purely along-track) that changes the orbital inclination by roughly 10 degrees.",
+    "structural": {
+      "required_types": ["Spacecraft", "ImpulsiveBurn"],
+      "required_commands": ["Maneuver"]
+    }
+  },
+  {
+    "id": "finite_burn",
+    "difficulty": "medium",
+    "request": "Apply a finite burn to a spacecraft using a thruster and fuel tank, burning for 60 seconds.",
+    "intent": "A spacecraft equipped with a fuel tank and a thruster, with a FiniteBurn turned on and then off around a propagation of about 60 seconds (BeginFiniteBurn ... Propagate ... EndFiniteBurn).",
+    "structural": {
+      "required_types": ["Spacecraft", "FiniteBurn"],
+      "required_commands": ["BeginFiniteBurn", "Propagate", "EndFiniteBurn"]
+    }
+  },
+  {
+    "id": "drag_force_model",
+    "difficulty": "medium",
+    "request": "Propagate a 300 km low orbit for several days including atmospheric drag.",
+    "intent": "A low (~300 km) spacecraft propagated for a few days with a force model that includes atmospheric drag (a drag/atmosphere model enabled), not just point-mass gravity.",
+    "structural": {
+      "required_types": ["Spacecraft", "ForceModel", "Propagator"],
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "srp_force_model",
+    "difficulty": "medium",
+    "request": "Propagate a geostationary spacecraft for several days including solar radiation pressure.",
+    "intent": "A GEO spacecraft propagated for several days with a force model that includes solar radiation pressure (SRP enabled), typically with the Sun as a point mass.",
+    "structural": {
+      "required_types": ["Spacecraft", "ForceModel", "Propagator"],
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "point_mass_sun_moon",
+    "difficulty": "medium",
+    "request": "Propagate a high orbit with Earth gravity plus the Sun and Moon as point-mass perturbations.",
+    "intent": "A high-altitude spacecraft propagated with a force model whose central body is Earth and that adds the Sun and the Moon (Luna) as point-mass perturbing bodies.",
+    "structural": {
+      "required_types": ["Spacecraft", "ForceModel", "Propagator"],
+      "required_fields": { "ForceModel": ["PointMasses"] },
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "nonspherical_gravity",
+    "difficulty": "medium",
+    "request": "Propagate a low-Earth orbit using an 8 by 8 non-spherical Earth gravity field.",
+    "intent": "A LEO spacecraft propagated with a force model using a non-spherical Earth gravity field of degree and order about 8 (a harmonic gravity model, not a point mass).",
+    "structural": {
+      "required_types": ["Spacecraft", "ForceModel", "Propagator"],
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "custom_coordinate_system",
+    "difficulty": "medium",
+    "request": "Define an Earth-centered Sun-pointing (VNB-style) coordinate system and report a spacecraft's state in it.",
+    "intent": "A user-defined CoordinateSystem (a custom origin/axes, e.g. an object-referenced or VNB/LVLH frame) with the spacecraft's state reported relative to that frame.",
+    "structural": {
+      "required_types": ["Spacecraft", "CoordinateSystem"],
+      "required_fields": { "CoordinateSystem": ["Origin", "Axes"] },
+      "required_commands": ["Report"]
+    }
+  },
+  {
+    "id": "hohmann_first_burn",
+    "difficulty": "medium",
+    "request": "Perform the first burn of a Hohmann transfer from a 500 km circular orbit to a higher circular orbit, then coast to apogee.",
+    "intent": "Starting from a ~500 km circular orbit, a prograde impulsive maneuver at periapsis that raises apogee toward the target altitude, followed by a propagation/coast to apogee.",
+    "structural": {
+      "required_types": ["Spacecraft", "ImpulsiveBurn"],
+      "required_commands": ["Maneuver", "Propagate"]
+    }
+  },
+  {
+    "id": "circularize_at_apogee",
+    "difficulty": "medium",
+    "request": "From an eccentric transfer orbit, circularize at apogee using a single prograde burn.",
+    "intent": "Starting on an eccentric orbit, coast to apogee then apply a prograde impulsive maneuver sized to circularize the orbit at the apogee radius (raising perigee to apogee).",
+    "structural": {
+      "required_types": ["Spacecraft", "ImpulsiveBurn"],
+      "required_commands": ["Maneuver", "Propagate"]
+    }
+  },
+  {
+    "id": "ground_station_contact",
+    "difficulty": "medium",
+    "request": "Define a ground station and report when a low-Earth orbit spacecraft is in view above a 10 degree elevation mask.",
+    "intent": "A GroundStation on Earth with a minimum elevation around 10 degrees and a LEO spacecraft, propagated while reporting visibility/elevation contact between the station and the spacecraft.",
+    "structural": {
+      "required_types": ["Spacecraft", "GroundStation", "Propagator"],
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "formation_two_sats",
+    "difficulty": "medium",
+    "request": "Create a formation of two spacecraft in similar orbits and propagate them together.",
+    "intent": "Two spacecraft grouped into a Formation resource and propagated together as the formation.",
+    "structural": {
+      "required_types": ["Spacecraft", "Formation", "Propagator"],
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "gto_orbit",
+    "difficulty": "medium",
+    "request": "Set up a geostationary transfer orbit with perigee at 250 km and apogee at geostationary altitude.",
+    "intent": "A spacecraft on a GTO: perigee altitude about 250 km and apogee near geostationary radius (about 42164 km), giving SMA near 24400 km and ECC near 0.73, typically at a low/launch inclination.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator"],
+      "required_fields": { "Spacecraft": ["SMA", "ECC"] },
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "for_loop_stepwise",
+    "difficulty": "medium",
+    "request": "Using a For loop, propagate a spacecraft in one-hour steps for a full day, reporting its state each step.",
+    "intent": "A spacecraft propagated inside a For loop that advances in ~1-hour increments across about 24 iterations, writing a report each iteration.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator", "ReportFile"],
+      "required_commands": ["For", "Propagate", "Report"]
+    }
+  },
+  {
+    "id": "molniya_apogee_report",
+    "difficulty": "medium",
+    "request": "Propagate a Molniya orbit to apogee and report the apogee altitude.",
+    "intent": "A Molniya spacecraft (high eccentricity, ~63.4 deg inclination) propagated to apoapsis, with a ReportFile recording the apogee altitude/radius.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator", "ReportFile"],
+      "required_fields": { "Spacecraft": ["ECC", "INC"] },
+      "required_commands": ["Propagate", "Report"]
+    }
+  },
+  {
+    "id": "high_accuracy_propagator",
+    "difficulty": "medium",
+    "request": "Propagate a low-Earth orbit for one day using a high-accuracy RungeKutta89 integrator with a tight accuracy setting.",
+    "intent": "A LEO spacecraft propagated for about a day with a propagator configured to use a RungeKutta89 (PrinceDormand78-class) integrator and a tight accuracy/error tolerance.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator"],
+      "required_fields": { "Propagator": ["Type"] },
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "target_apogee",
+    "difficulty": "hard",
+    "request": "Use a differential corrector to target an apogee radius of 8000 km by varying an impulsive burn.",
+    "intent": "A targeting sequence using a DifferentialCorrector that varies an impulsive burn and achieves an apogee radius (RMAG at apoapsis) of 8000 km.",
+    "structural": {
+      "required_types": ["DifferentialCorrector", "ImpulsiveBurn"],
+      "required_commands": ["Target", "Vary", "Achieve"]
+    }
+  },
+  {
+    "id": "oem_ephem",
+    "difficulty": "hard",
+    "request": "Propagate the spacecraft and write its trajectory to a CCSDS-OEM ephemeris file.",
+    "intent": "A spacecraft propagated with an EphemerisFile output whose file format is CCSDS-OEM.",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator", "EphemerisFile"],
+      "required_fields": { "EphemerisFile": ["FileFormat"] },
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "hohmann_transfer_target",
+    "difficulty": "hard",
+    "request": "Use a differential corrector to perform a full Hohmann transfer from LEO to geostationary altitude with two burns, achieving a final semi-major axis of 42164 km.",
+    "intent": "A targeting sequence with two impulsive burns that achieves a final circular orbit at geostationary radius (SMA about 42164 km): a first burn raising apogee and a second circularizing, with the DifferentialCorrector achieving the final SMA/RMAG of ~42164 km.",
+    "structural": {
+      "required_types": ["DifferentialCorrector", "ImpulsiveBurn"],
+      "required_commands": ["Target", "Vary", "Maneuver", "Achieve"]
+    }
+  },
+  {
+    "id": "target_inclination",
+    "difficulty": "hard",
+    "request": "Use a differential corrector to drive a spacecraft's inclination to zero by varying an out-of-plane burn.",
+    "intent": "A targeting sequence that varies an out-of-plane impulsive burn and achieves a final inclination of 0 degrees (a plane change to the equator).",
+    "structural": {
+      "required_types": ["DifferentialCorrector", "ImpulsiveBurn"],
+      "required_commands": ["Target", "Vary", "Achieve"]
+    }
+  },
+  {
+    "id": "optimize_transfer_dv",
+    "difficulty": "hard",
+    "request": "Use an optimizer to minimize the total delta-v of a two-burn orbit raise to a target altitude.",
+    "intent": "An optimization sequence (Optimize ... EndOptimize) that varies the burn magnitudes of a two-impulse transfer and minimizes the total delta-v / fuel cost subject to reaching the target orbit.",
+    "structural": {
+      "required_types": ["Spacecraft", "ImpulsiveBurn"],
+      "required_commands": ["Optimize", "Vary", "Minimize"]
+    }
+  },
+  {
+    "id": "spk_ephemeris",
+    "difficulty": "hard",
+    "request": "Propagate the spacecraft and write its trajectory to a SPICE SPK ephemeris file.",
+    "intent": "A spacecraft propagated with an EphemerisFile output whose file format is SPK (a SPICE .bsp kernel).",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator", "EphemerisFile"],
+      "required_fields": { "EphemerisFile": ["FileFormat"] },
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "stk_ephemeris",
+    "difficulty": "hard",
+    "request": "Propagate the spacecraft and export its trajectory in STK ephemeris (.e) format.",
+    "intent": "A spacecraft propagated with an EphemerisFile output whose file format is the STK time-position-velocity ephemeris (STK-TimePosVel / .e).",
+    "structural": {
+      "required_types": ["Spacecraft", "Propagator", "EphemerisFile"],
+      "required_fields": { "EphemerisFile": ["FileFormat"] },
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "geo_stationkeeping",
+    "difficulty": "hard",
+    "request": "Use a differential corrector to perform an east-west station-keeping burn that returns a geostationary spacecraft to its target longitude drift.",
+    "intent": "A targeting sequence on a geostationary spacecraft that varies an along-track impulsive burn to achieve a near-zero longitude drift rate (semi-major axis back at geostationary radius), i.e. east-west station keeping.",
+    "structural": {
+      "required_types": ["Spacecraft", "DifferentialCorrector", "ImpulsiveBurn"],
+      "required_commands": ["Target", "Vary", "Achieve"]
+    }
+  },
+  {
+    "id": "sun_earth_l2",
+    "difficulty": "hard",
+    "request": "Set up a spacecraft near the Sun-Earth L2 libration point and report its state in a libration-point coordinate system.",
+    "intent": "A spacecraft positioned near the Sun-Earth L2 point, using a LibrationPoint resource (primary Sun, secondary Earth, point L2) and a coordinate system referenced to it, with the state reported in that frame.",
+    "structural": {
+      "required_types": ["Spacecraft", "LibrationPoint", "CoordinateSystem"],
+      "required_commands": ["Report"]
+    }
+  },
+  {
+    "id": "lunar_transfer",
+    "difficulty": "hard",
+    "request": "Propagate a trans-lunar trajectory from a high Earth orbit to lunar periapsis with the Moon included in the force model.",
+    "intent": "A spacecraft on a translunar trajectory propagated with a force model that includes the Moon (Luna) as a point mass/primary, stopping near lunar periapsis (closest approach to the Moon).",
+    "structural": {
+      "required_types": ["Spacecraft", "ForceModel", "Propagator"],
+      "required_commands": ["Propagate"]
+    }
+  },
+  {
+    "id": "bplane_target",
+    "difficulty": "hard",
+    "request": "Use a differential corrector to target B-plane parameters BdotT and BdotR at a planetary flyby by varying a burn.",
+    "intent": "A targeting sequence that varies an impulsive burn and achieves specified B-plane coordinates (BdotT and BdotR) at a flyby, using a DifferentialCorrector.",
+    "structural": {
+      "required_types": ["DifferentialCorrector", "ImpulsiveBurn"],
+      "required_commands": ["Target", "Vary", "Achieve"]
+    }
+  },
+  {
+    "id": "finite_burn_target_sma",
+    "difficulty": "hard",
+    "request": "Use a differential corrector to target a final semi-major axis by varying the duration of a finite burn.",
+    "intent": "A targeting sequence that turns on a finite burn (thruster + tank), varies the burn duration or an associated parameter, and achieves a target semi-major axis with a DifferentialCorrector.",
+    "structural": {
+      "required_types": ["Spacecraft", "FiniteBurn", "DifferentialCorrector"],
+      "required_commands": ["Target", "Vary", "Achieve"]
+    }
+  },
+  {
+    "id": "heliocentric_cruise",
+    "difficulty": "hard",
+    "request": "Propagate a spacecraft on a heliocentric cruise in a Sun-centered force model out to about 1 AU of travel.",
+    "intent": "A spacecraft propagated in a Sun-centered (heliocentric) force model with the Sun as the central/primary body, cruising on an interplanetary arc rather than orbiting Earth.",
+    "structural": {
+      "required_types": ["Spacecraft", "ForceModel", "Propagator"],
+      "required_commands": ["Propagate"]
+    }
+  }
+]

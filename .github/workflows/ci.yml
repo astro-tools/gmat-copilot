@@ -83,8 +83,11 @@ jobs:
 
   gated-eval:
     name: gated eval (live, GitHub Models)
-    # Subset on PRs, full on manual dispatch. Wired as a stub until the eval prompt-set lands.
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    # Live inference runs ONLY on manual dispatch (decision D7): per-PR CI is the deterministic
+    # recorded replay above, so there is no per-PR inference budget to subset. This job is the
+    # full-suite live run / fixture-refresh path; it needs a personal MODELS_PAT (the workflow
+    # GITHUB_TOKEN is unreliable for GitHub Models inference).
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       models: read
@@ -99,7 +102,12 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
       - run: uv sync --all-groups
-      - run: uv run gmat-copilot eval --live
+      - run: >
+          uv run gmat-copilot eval --live
+          --prompts tests/data/eval/prompts.json
+          -m github:openai/gpt-4.1-mini
+          --judge-model openai/gpt-4.1-mini
+          --pace 4.5
 
   minimal-install:
     name: minimal install (no extras)

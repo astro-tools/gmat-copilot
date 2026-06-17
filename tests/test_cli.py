@@ -183,12 +183,53 @@ def test_draft_alias_matches_the_bare_form(
     assert out.read_text(encoding="utf-8").startswith("Create Spacecraft")
 
 
-def test_eval_live_is_a_noop_stub(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["eval", "--live"]) == 0
-
-
 def test_eval_recorded_replays_bundle(
     eval_bundle: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     assert main(["eval", "--recorded", str(eval_bundle), "-m", "openai/gpt-4.1-mini"]) == 0
-    assert "pass-rate: 100%" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "pass-rate: 80%" in out  # the frozen 51-prompt aggregate (41/51)
+    assert "[easy" in out  # the per-prompt line shows the difficulty tier
+
+
+def test_eval_with_no_mode_prints_a_hint(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["eval"]) == 0
+    assert "--recorded" in capsys.readouterr().err
+
+
+def test_eval_live_without_prompts_errors(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["eval", "--live"]) == 2
+    assert "--prompts" in capsys.readouterr().err
+
+
+def test_eval_live_errors_cleanly_without_credentials(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Reach the generation provider with no token: a clean exit-2 ProviderError, not a traceback.
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("MODELS_PAT", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr("gmat_copilot.generate.Retriever", _OfflineRetriever)
+    prompts = tmp_path / "prompts.json"
+    prompts.write_text(
+        '[{"id": "p", "request": "a LEO", "intent": "a LEO", "structural": {}}]',
+        encoding="utf-8",
+    )
+    code = main(["eval", "--live", "--prompts", str(prompts), "-m", "github:openai/gpt-4.1-mini"])
+    assert code == 2
+    assert "gmat-copilot:" in capsys.readouterr().err
+
+
+def test_eval_record_errors_cleanly_without_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # --record loads prompts from DIR/prompts.json, then hits the same credential error path.
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("MODELS_PAT", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr("gmat_copilot.generate.Retriever", _OfflineRetriever)
+    (tmp_path / "prompts.json").write_text(
+        '[{"id": "p", "request": "a LEO", "intent": "a LEO", "structural": {}}]',
+        encoding="utf-8",
+    )
+    assert main(["eval", "--record", str(tmp_path), "-m", "github:openai/gpt-4.1-mini"]) == 2

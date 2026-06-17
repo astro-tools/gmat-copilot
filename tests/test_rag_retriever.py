@@ -87,6 +87,49 @@ def test_top_k_override(tmp_path: Path, fake_embedder: Embedder) -> None:
     assert len(retriever.retrieve("orbits", top_k=2).chunks) == 2
 
 
+def test_pins_a_worked_example_below_the_budget_cut(
+    tmp_path: Path, fake_embedder: Embedder
+) -> None:
+    # Three high-relevance definition chunks crowd out a low-relevance worked example. Without the
+    # pin the budget keeps only the definitions (no command syntax); the pin retains the example.
+    defn = "spacecraft orbit altitude semi major axis eccentricity inclination"
+    chunks = [
+        CorpusChunk(f"{defn} one", "help", "a.html", "Fields"),
+        CorpusChunk(f"{defn} two", "help", "b.html", "Fields"),
+        CorpusChunk(f"{defn} three", "help", "c.html", "Fields"),
+        CorpusChunk(
+            "BeginMissionSequence Propagate Prop(Sat) {Sat.ElapsedDays = 1}; Report rf Sat.X",
+            "sample",
+            "Ex_Demo.script",
+            "Mission Sequence",
+        ),
+    ]
+    retriever = _retriever(tmp_path, fake_embedder, chunks, top_k=8, token_budget=50)
+    trace = retriever.retrieve(defn)
+    texts = [c.text for c in trace.chunks]
+    assert any("BeginMissionSequence" in t for t in texts)  # the worked example is pinned in
+    assert any("eccentricity inclination" in t for t in texts)  # a top definition is still kept
+    # The pinned example outranks nothing — it is appended despite the lowest relevance score.
+    assert trace.chunks[-1].score == min(c.score for c in trace.chunks)
+
+
+def test_worked_example_in_top_k_is_not_duplicated(tmp_path: Path, fake_embedder: Embedder) -> None:
+    chunks = [
+        CorpusChunk(
+            "BeginMissionSequence Propagate Prop(Sat) {Sat.ElapsedDays = 1}; Report rf",
+            "sample",
+            "Ex.script",
+            "Mission Sequence",
+        ),
+        CorpusChunk("spacecraft fields semi major axis", "help", "a.html"),
+    ]
+    retriever = _retriever(tmp_path, fake_embedder, chunks, top_k=8, token_budget=100_000)
+    trace = retriever.retrieve("BeginMissionSequence Propagate Report")
+    # When the worked example is already a top hit it is kept once, not pinned a second time.
+    assert sum("BeginMissionSequence" in c.text for c in trace.chunks) == 1
+    assert len(trace.chunks) == 2
+
+
 def test_assemble_context_formats_with_attribution() -> None:
     trace = RetrievalTrace(
         chunks=(

@@ -1,0 +1,155 @@
+{
+  "bplane_target": [
+    true
+  ],
+  "cartesian_state": [
+    false
+  ],
+  "circularize_at_apogee": [
+    true
+  ],
+  "custom_coordinate_system": [
+    true
+  ],
+  "drag_force_model": [
+    true
+  ],
+  "equatorial_orbit": [
+    true
+  ],
+  "finite_burn": [
+    true
+  ],
+  "finite_burn_target_sma": [
+    true
+  ],
+  "for_loop_stepwise": [
+    false
+  ],
+  "formation_two_sats": [
+    true
+  ],
+  "geo_stationary": [
+    true
+  ],
+  "geo_stationkeeping": [
+    true
+  ],
+  "ground_station_contact": [
+    true
+  ],
+  "ground_track_leo": [
+    false
+  ],
+  "gto_orbit": [
+    false
+  ],
+  "heliocentric_cruise": [
+    true
+  ],
+  "high_accuracy_propagator": [
+    true
+  ],
+  "hohmann_first_burn": [
+    true
+  ],
+  "hohmann_transfer_target": [
+    true
+  ],
+  "iss_groundtrack": [
+    true
+  ],
+  "leo_circular": [
+    true
+  ],
+  "lower_perigee": [
+    false
+  ],
+  "lunar_transfer": [
+    false
+  ],
+  "molniya_apogee_report": [
+    true
+  ],
+  "molniya_orbit": [
+    true
+  ],
+  "nonspherical_gravity": [
+    true
+  ],
+  "oem_ephem": [
+    true
+  ],
+  "optimize_transfer_dv": [
+    true
+  ],
+  "orbit_view_leo": [
+    true
+  ],
+  "plane_change_burn": [
+    true
+  ],
+  "point_mass_sun_moon": [
+    true
+  ],
+  "polar_orbit": [
+    true
+  ],
+  "propagate_elapsed_secs": [
+    true
+  ],
+  "propagate_one_period": [
+    true
+  ],
+  "propagate_three_days": [
+    true
+  ],
+  "propagate_to_periapsis": [
+    true
+  ],
+  "raise_apogee": [
+    true
+  ],
+  "report_apsis_altitudes": [
+    true
+  ],
+  "report_keplerian_elements": [
+    true
+  ],
+  "report_orbital_period": [
+    true
+  ],
+  "report_with_headers": [
+    false
+  ],
+  "set_epoch_utc": [
+    true
+  ],
+  "spacecraft_dry_mass": [
+    true
+  ],
+  "spk_ephemeris": [
+    true
+  ],
+  "srp_force_model": [
+    false
+  ],
+  "stk_ephemeris": [
+    false
+  ],
+  "sun_earth_l2": [
+    true
+  ],
+  "sun_sync": [
+    true
+  ],
+  "target_apogee": [
+    true
+  ],
+  "target_inclination": [
+    true
+  ],
+  "xy_plot_altitude": [
+    true
+  ]
+}

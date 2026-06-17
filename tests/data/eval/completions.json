@@ -1,0 +1,410 @@
+{
+  "github:openai/gpt-4.1-mini:0102063df2fdc982": {
+    "text": "Create Barycenter EarthMoonBary;\nEarthMoonBary.BodyNames = {Earth,Luna};\n\nCreate LibrationPoint SunEarthL2;\nSunEarthL2.Primary   = Sun;\nSunEarthL2.Secondary = EarthMoonBary;\nSunEarthL2.Point     = L2;\n\nCreate CoordinateSystem SunEarthL2Coord;\nSunEarthL2Coord.Origin    = SunEarthL2;\nSunEarthL2Coord.Axes      = ObjectReferenced;\nSunEarthL2Coord.XAxis     = R;\nSunEarthL2Coord.ZAxis     = N;\nSunEarthL2Coord.Primary   = Sun;\nSunEarthL2Coord.Secondary = EarthMoonBary;\n\nCreate Spacecraft Sat;\nSat.DateFormat       = UTCGregorian;\nSat.Epoch            = '01 Jan 2024 00:00:00.000';\nSat.CoordinateSystem = SunEarthL2Coord;\nSat.DisplayStateType = Cartesian;\nSat.X  = 1000;\nSat.Y  = 0;\nSat.Z  = 0;\nSat.VX = 0;\nSat.VY = 0.5;\nSat.VZ = 0;\n\nCreate ForceModel FM;\nFM.PointMasses = {Sun, Earth, Luna};\n\nCreate Propagator Prop;\nProp.FM = FM;\n\nCreate ReportFile rf;\nrf.Filename = 'SatStateAtL2.txt';\nrf.Add = {Sat.X, Sat.Y, Sat.Z, Sat.VX, Sat.VY, Sat.VZ};\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};\nReport rf Sat.X Sat.Y Sat.Z Sat.VX Sat.VY Sat.VZ;",
+    "usage": {
+      "completion_tokens": 349,
+      "prompt_tokens": 2529,
+      "total_tokens": 2878
+    }
+  },
+  "github:openai/gpt-4.1-mini:0c2aa0d78a081492": {
+    "text": "Create Spacecraft Sat;\nSat.DateFormat = UTCGregorian;\nSat.Epoch = '01 Jan 2000 00:00:00.000';\nSat.CoordinateSystem = EarthMJ2000Eq;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 6878.137;  % Earth radius (6378.137 km) + 500 km altitude\nSat.ECC = 0;\nSat.INC = 0;\nSat.DryMass = 850;\n\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\n\nCreate Propagator Prop;\nProp.FM = FM;\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 147,
+      "prompt_tokens": 2909,
+      "total_tokens": 3056
+    }
+  },
+  "github:openai/gpt-4.1-mini:0ea8b54a4960bbca": {
+    "text": "Create Spacecraft Sat;\nSat.DateFormat       = UTCGregorian;\nSat.Epoch            = '01 Jan 2025 12:00:00.000';\nSat.CoordinateSystem = EarthMJ2000Eq;\nSat.DisplayStateType = Keplerian;\nSat.SMA              = 7000;\nSat.ECC              = 0.001;\nSat.INC              = 28.5;\nSat.RAAN             = 0;\nSat.AOP              = 0;\nSat.TA               = 0;\nCreate ReportFile rf;\nrf.Filename = 'orbit_elements.report';\nrf.Add = {Sat.SMA Sat.ECC Sat.INC Sat.RAAN Sat.AOP Sat.TA};\nBeginMissionSequence;\nReport rf Sat.SMA Sat.ECC Sat.INC Sat.RAAN Sat.AOP Sat.TA;",
+    "usage": {
+      "completion_tokens": 176,
+      "prompt_tokens": 2884,
+      "total_tokens": 3060
+    }
+  },
+  "github:openai/gpt-4.1-mini:145a01f05232b106": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7000;\nSat.ECC = 0.001;\nSat.INC = 28.5;\n\nCreate ForceModel FM;\nFM.CentralBody = Earth;\nFM.PrimaryBodies = {Earth};\nFM.PointMasses = {};\nFM.Drag = None;\nFM.SRP = Off;\nFM.RelativisticCorrection = Off;\nFM.ErrorControl = None;\nFM.GravityField.Earth.PotentialFile = 'JGM2.cof';\nFM.GravityField.Earth.Degree = 8;\nFM.GravityField.Earth.Order = 8;\nFM.GravityField.Earth.TideModel = 'None';\n\nCreate Propagator Prop;\nProp.FM = FM;\nProp.Type = RungeKutta89;\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 184,
+      "prompt_tokens": 2880,
+      "total_tokens": 3064
+    }
+  },
+  "github:openai/gpt-4.1-mini:167d000c2f3e3b3d": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7000;\nSat.ECC = 0.01;\nSat.INC = 28.5;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ImpulsiveBurn Burn1;\nBurn1.Axes = VNB;\nCreate ImpulsiveBurn Burn2;\nBurn2.Axes = VNB;\nCreate VF13ad Optimizer;\nOptimizer.Tolerance = 1e-008;\nCreate Variable TotalDV;\nCreate ReportFile rf;\nrf.Filename = 'optimize_results.txt';\nrf.Add = {Optimizer.SolverStatus, Optimizer.SolverState};\n\nBeginMissionSequence;\nOptimize Optimizer\n  Vary Optimizer(Burn1.Element1 = 0.1, {Lower = 0, Upper = 5, MaxStep = 0.5})\n  Vary Optimizer(Burn2.Element1 = 0.1, {Lower = 0, Upper = 5, MaxStep = 0.5})\n  Maneuver Burn1(Sat)\n  Propagate Prop(Sat) {Sat.Apoapsis}\n  Maneuver Burn2(Sat)\n  Propagate Prop(Sat) {Sat.ElapsedSecs = 10}\n  GMAT TotalDV = Burn1.Element1 + Burn2.Element1\n  NonlinearConstraint Optimizer(Sat.Earth.RMAG = 42164)\n  Minimize Optimizer(TotalDV)\nEndOptimize\nReport rf Optimizer.SolverStatus Optimizer.SolverState;",
+    "usage": {
+      "completion_tokens": 332,
+      "prompt_tokens": 2623,
+      "total_tokens": 2955
+    }
+  },
+  "github:openai/gpt-4.1-mini:1b6b01b6ec1ffe5d": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7000;\nSat.ECC = 0.1;\nSat.INC = 28.5;\nSat.RAAN = 0;\nSat.AOP = 0;\nSat.TA = 0;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ReportFile rf;\nrf.Filename = 'orbit_altitudes.txt';\nrf.Add = {Sat.Earth.ApoapsisAltitude Sat.Earth.PeriapsisAltitude};\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedSecs = 3600};\nReport rf Sat.Earth.ApoapsisAltitude Sat.Earth.PeriapsisAltitude;",
+    "usage": {
+      "completion_tokens": 165,
+      "prompt_tokens": 2794,
+      "total_tokens": 2959
+    }
+  },
+  "github:openai/gpt-4.1-mini:1c4cea0af38816d2": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7000;\nSat.ECC = 0.01;\nSat.INC = 28.5;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ImpulsiveBurn Burn;\nBurn.Axes = VNB;\nBurn.Element1 = 0.5;\nCreate DifferentialCorrector DC;\nCreate ReportFile rf;\nrf.Filename = 'output.txt';\nrf.Add = {Sat.Earth.RMAG};\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.Earth.Periapsis};\nTarget DC {SolveMode = Solve, ExitMode = DiscardAndContinue};\n   Vary DC(Burn.Element1 = 0.5, {Perturbation = 1e-4, Lower = 0, Upper = 3, MaxStep = 0.2});\n   Maneuver Burn(Sat);\n   Propagate Prop(Sat) {Sat.Earth.Apoapsis};\n   Achieve DC(Sat.Earth.RMAG = 8000, {Tolerance = 0.1});\nEndTarget;\nReport rf Sat.Earth.RMAG;",
+    "usage": {
+      "completion_tokens": 255,
+      "prompt_tokens": 2142,
+      "total_tokens": 2397
+    }
+  },
+  "github:openai/gpt-4.1-mini:23e9999ab0a33495": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 6878;          % Earth radius ~6378 + 500 km altitude\nSat.ECC = 0;\nSat.INC = 0;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ImpulsiveBurn TOI;\nTOI.Axes = VNB;\nCreate DifferentialCorrector DC;\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.Earth.Periapsis};\n\nTarget DC {SolveMode = Solve, ExitMode = DiscardAndContinue};\n   Vary DC(TOI.Element1 = 0.5, {Perturbation = 0.0001, Lower = 0, Upper = 3, MaxStep = 0.2});\n   Maneuver TOI(Sat);\n   Propagate Prop(Sat) {Sat.Apoapsis};\nEndTarget;",
+    "usage": {
+      "completion_tokens": 203,
+      "prompt_tokens": 2668,
+      "total_tokens": 2871
+    }
+  },
+  "github:openai/gpt-4.1-mini:2da9a40c033cf5bc": {
+    "text": "Create Spacecraft Sat;\nSat.DateFormat = UTCGregorian;\nSat.Epoch = '01 Jan 2025 12:00:00.000';\nSat.CoordinateSystem = EarthMJ2000Eq;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 6878.1363;\nSat.ECC = 0;\nSat.INC = 51.6;\nSat.RAAN = 0;\nSat.AOP = 0;\nSat.TA = 0;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ReportFile rf;\nrf.Filename = 'orbit_report.txt';\nrf.Add = {Sat.Earth.Altitude, Sat.Earth.SMA};\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};\nReport rf Sat.Earth.Altitude Sat.Earth.SMA;",
+    "usage": {
+      "completion_tokens": 192,
+      "prompt_tokens": 2765,
+      "total_tokens": 2957
+    }
+  },
+  "github:openai/gpt-4.1-mini:3f6aa55e555ac62e": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7178;  % Earth radius ~6378 km + 800 km altitude\nSat.ECC = 0;\nSat.INC = 90;\nSat.RAAN = 0;\nSat.AOP = 0;\nSat.TA = 0;\nCreate ForceModel FM;\nFM.CentralBody = Earth;\nFM.PointMasses = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 127,
+      "prompt_tokens": 2783,
+      "total_tokens": 2910
+    }
+  },
+  "github:openai/gpt-4.1-mini:3f839ff3dd9eb7a2": {
+    "text": "Create Spacecraft LEO;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ReportFile rf;\nrf.Filename = 'LEO_Position_Report.txt';\nrf.ColumnHeaders = true;\nrf.Add = {LEO.EarthMJ2000Eq.X LEO.EarthMJ2000Eq.Y LEO.EarthMJ2000Eq.Z};\nBeginMissionSequence;\nPropagate Prop(LEO) {LEO.ElapsedDays = 1};\nReport rf LEO.EarthMJ2000Eq.X LEO.EarthMJ2000Eq.Y LEO.EarthMJ2000Eq.Z;",
+    "usage": {
+      "completion_tokens": 139,
+      "prompt_tokens": 2786,
+      "total_tokens": 2925
+    }
+  },
+  "github:openai/gpt-4.1-mini:45332cc0d856ce1f": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 6878;\nSat.ECC = 0;\nSat.INC = 0;\nSat.RAAN = 0;\nSat.AOP = 0;\nSat.TA = 0;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ReportFile rf;\nrf.Filename = 'OrbitPeriod.txt';\nrf.Add = {Sat.OrbitalPeriod};\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedSecs = Sat.OrbitalPeriod};\nReport rf Sat.OrbitalPeriod;",
+    "usage": {
+      "completion_tokens": 140,
+      "prompt_tokens": 3124,
+      "total_tokens": 3264
+    }
+  },
+  "github:openai/gpt-4.1-mini:45b7554187c70ae1": {
+    "text": "Create Spacecraft Sat;\nCreate Propagator Prop;\nProp.FM = Create ForceModel FM;\nFM.PrimaryBodies = {Earth};\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedSecs = 3600};",
+    "usage": {
+      "completion_tokens": 51,
+      "prompt_tokens": 2754,
+      "total_tokens": 2805
+    }
+  },
+  "github:openai/gpt-4.1-mini:4867a5c0c8528b19": {
+    "text": "Create Spacecraft Sat;\nSat.SMA = 26600;\nSat.ECC = 0.74;\nSat.INC = 63.4;\nSat.DisplayStateType = Keplerian;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ReportFile rf;\nrf.Filename = 'apogee_altitude.txt';\nrf.Add = {Sat.Earth.Altitude};\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.Apoapsis};\nReport rf Sat.Earth.Altitude;",
+    "usage": {
+      "completion_tokens": 123,
+      "prompt_tokens": 2519,
+      "total_tokens": 2642
+    }
+  },
+  "github:openai/gpt-4.1-mini:4df35a8ae770b381": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 42164/2;  % Approximate initial guess, will be refined by targeting\nSat.ECC = (42164 - (6378 + 250)) / (42164 + (6378 + 250));  % Approximate eccentricity for GTO\nSat.INC = 0;\nSat.RAAN = 0;\nSat.AOP = 0;\nSat.TA = 0;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ImpulsiveBurn Burn1;\nBurn1.Axes = VNB;\nCreate ImpulsiveBurn Burn2;\nBurn2.Axes = VNB;\nCreate DifferentialCorrector DC;\nCreate Targeter Target1;\nCreate ReportFile rf;\nrf.Filename = 'GTO_Transfer.txt';\nrf.Add = {Sat.Earth.SMA, Sat.Earth.ECC, Sat.Earth.INC, Sat.Earth.Apoapsis, Sat.Earth.Periapsis};\nBeginMissionSequence;\nTarget DC;\n   Vary Burn1.Element1 = 0;\n   Vary Burn1.Element2 = 0;\n   Vary Burn1.Element3 = 0;\n   Maneuver Burn1(Sat);\n   Propagate Prop(Sat) {Sat.Earth.Apoapsis};\n   Achieve Sat.Earth.Apoapsis = 42164;\nEndTarget;\nTarget DC;\n   Vary Burn2.Element1 = 0;\n   Vary Burn2.Element2 = 0;\n   Vary Burn2.Element3 = 0;\n   Maneuver Burn2(Sat);\n   Propagate Prop(Sat) {Sat.Earth.ECC = 0.005};\n   Achieve Sat.Earth.ECC = 0.005;\nEndTarget;\nReport rf Sat.Earth.SMA Sat.Earth.ECC Sat.Earth.INC Sat.Earth.Apoapsis Sat.Earth.Periapsis;",
+    "usage": {
+      "completion_tokens": 422,
+      "prompt_tokens": 1761,
+      "total_tokens": 2183
+    }
+  },
+  "github:openai/gpt-4.1-mini:4e061e35d2614a62": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 6978;          % Earth radius ~6378 km + 600 km altitude\nSat.ECC = 0;\nSat.INC = 0;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ImpulsiveBurn RetroBurn;\nRetroBurn.CoordinateSystem = Local;\nRetroBurn.Origin = Earth;\nRetroBurn.Axes = VNB;\nRetroBurn.Element1 = 180;  % Retrograde burn along velocity vector (opposite direction)\nRetroBurn.Element2 = 0;\nRetroBurn.Element3 = 0;\nRetroBurn.DecrementMass = false;\nRetroBurn.Isp = 300;\nRetroBurn.GravitationalAccel = 9.81;\nCreate ReportFile rf;\nrf.Filename = 'LowerPerigee.txt';\nrf.Add = {Sat.Earth.Periapsis, Sat.Earth.Apoapsis, Sat.Earth.RMAG};\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.Earth.Apoapsis};\nManeuver RetroBurn(Sat);\nPropagate Prop(Sat) {Sat.Earth.Periapsis};\nReport rf Sat.Earth.Periapsis Sat.Earth.Apoapsis Sat.Earth.RMAG;",
+    "usage": {
+      "completion_tokens": 280,
+      "prompt_tokens": 2702,
+      "total_tokens": 2982
+    }
+  },
+  "github:openai/gpt-4.1-mini:5a92d761c7ee2fc6": {
+    "text": "Create Spacecraft GEO;\nGEO.Epoch.UTCGregorian = '01 Jan 2024 12:00:00.000';\nGEO.SMA = 42164;\nGEO.ECC = 0;\nGEO.INC = 0;\nGEO.RAAN = 0;\nGEO.AOP = 0;\nGEO.TA = 0;\nGEO.DryMass = 1000;\nGEO.Cd = 2.2;\nGEO.Cr = 1.5;\nGEO.Area = 20;\n\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nFM.SRPModel = Cannonball;\n\nCreate Propagator Prop;\nProp.FM = FM;\nProp.Type = RungeKutta89;\n\nBeginMissionSequence;\nPropagate Prop(GEO) {GEO.ElapsedDays = 5};",
+    "usage": {
+      "completion_tokens": 182,
+      "prompt_tokens": 2651,
+      "total_tokens": 2833
+    }
+  },
+  "github:openai/gpt-4.1-mini:5bf60d4b03c0825b": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7000;\nSat.ECC = 0.01;\nSat.INC = 28.5;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ImpulsiveBurn Burn;\nBurn.Axes = VNB;\nBurn.Element1 = 0;\nBurn.Element2 = 0;\nBurn.Element3 = 0;\nCreate DifferentialCorrector DC;\nCreate ReportFile rf;\nrf.Filename = 'inclination_correction.txt';\nrf.Add = {Sat.Earth.INC};\nBeginMissionSequence;\nTarget DC {SolveMode = Solve, ExitMode = DiscardAndContinue};\n   Vary DC(Burn.Element3 = 0, {Perturbation = 1e-4, Lower = -1, Upper = 1, MaxStep = 0.2});\n   Maneuver Burn(Sat);\n   Propagate Prop(Sat) {Sat.ElapsedSecs = 3600};\n   Achieve DC(Sat.Earth.INC = 0, {Tolerance = 1e-4});\nEndTarget;\nReport rf Sat.Earth.INC;",
+    "usage": {
+      "completion_tokens": 253,
+      "prompt_tokens": 2570,
+      "total_tokens": 2823
+    }
+  },
+  "github:openai/gpt-4.1-mini:64808a10acd1aac4": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 70000;\nSat.ECC = 0.01;\nSat.INC = 28.5;\n\nCreate ForceModel EarthMoonForces;\nEarthMoonForces.CentralBody = Earth;\nEarthMoonForces.PrimaryBodies = {Earth};\nEarthMoonForces.PointMasses = {Sun, Luna, Venus, Mars, Jupiter, Saturn, Uranus, Neptune};\nEarthMoonForces.SRP = On;\nEarthMoonForces.RelativisticCorrection = Off;\nEarthMoonForces.ErrorControl = RSSStep;\nEarthMoonForces.GravityField.Earth.Degree = 20;\nEarthMoonForces.GravityField.Earth.Order = 20;\nEarthMoonForces.GravityField.Earth.PotentialFile = 'JGM2.cof';\nEarthMoonForces.GravityField.Earth.TideModel = 'None';\nEarthMoonForces.SRP.Flux = 1367;\nEarthMoonForces.SRP.SRPModel = Spherical;\nEarthMoonForces.SRP.Nominal_Sun = 149597870.691;\nEarthMoonForces.Drag = None;\n\nCreate Propagator Prop;\nProp.FM = EarthMoonForces;\nProp.Type = RungeKutta89;\nProp.InitialStepSize = 60;\nProp.Accuracy = 9.999999999999999e-012;\nProp.MinStep = 0.001;\nProp.MaxStep = 45000;\nProp.MaxStepAttempts = 50;\nProp.StopIfAccuracyIsViolated = true;\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.Luna.Periapsis};",
+    "usage": {
+      "completion_tokens": 346,
+      "prompt_tokens": 2729,
+      "total_tokens": 3075
+    }
+  },
+  "github:openai/gpt-4.1-mini:64bddb1cdcded0ef": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 26600;\nSat.ECC = 0.74;\nSat.INC = 63.4;\nSat.AOP = 270;\nSat.RAAN = 0;\nSat.TA = 0;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ReportFile rf;\nrf.Filename = 'MolniyaOrbit.txt';\nrf.Add = {Sat.ElapsedSecs, Sat.SMA, Sat.ECC, Sat.INC, Sat.Apoapsis, Sat.Periapsis};\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedSecs = 43200};\nReport rf Sat.ElapsedSecs Sat.SMA Sat.ECC Sat.INC Sat.Apoapsis Sat.Periapsis;",
+    "usage": {
+      "completion_tokens": 183,
+      "prompt_tokens": 1639,
+      "total_tokens": 1822
+    }
+  },
+  "github:openai/gpt-4.1-mini:68bbc9a6da67be77": {
+    "text": "Create Spacecraft Sat;\nSat.Epoch = '01 Jan 2024 12:00:00.000';\nSat.DisplayStateType = Keplerian;\nSat.SMA = 149597870.7;  % 1 AU in km\nSat.ECC = 0.0;\nSat.INC = 0.0;\nSat.AOP = 0.0;\nSat.RAAN = 0.0;\nSat.TA = 0.0;\n\nCreate ForceModel FM;\nFM.CentralBody = Sun;\nFM.PointMasses = {Sun, Earth, Luna, Mars, Saturn, Uranus, Mercury, Venus, Jupiter};\nFM.SRP = On;\nFM.RelativisticCorrection = On;\nFM.ErrorControl = None;\n\nCreate Propagator Prop;\nProp.FM = FM;\nProp.MinStep = 0;\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.SMA > 2.0e8};",
+    "usage": {
+      "completion_tokens": 201,
+      "prompt_tokens": 1983,
+      "total_tokens": 2184
+    }
+  },
+  "github:openai/gpt-4.1-mini:68d7ef7806c0b15c": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7000;\nSat.ECC = 0.001;\nSat.INC = 28.5;\nCreate ForceModel FM;\nFM.CentralBody = Earth;\nFM.PointMasses = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate OrbitView EarthView;\nEarthView.Add = {Sat, Earth};\nEarthView.CoordinateSystem = EarthMJ2000Eq;\nEarthView.ViewPointReference = Earth;\nEarthView.ViewDirection = Earth;\nEarthView.ViewPointVector = [30000 0 30000];\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 152,
+      "prompt_tokens": 2704,
+      "total_tokens": 2856
+    }
+  },
+  "github:openai/gpt-4.1-mini:6a779c9fb7e499cd": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7078;        % Earth radius 6378 + 700 km altitude\nSat.ECC = 0.001;\nSat.INC = 97.8;        % retrograde, near-polar for sun-synchronicity\nSat.RAAN = 0;\nSat.AOP = 0;\nSat.TA = 0;\n\nCreate ForceModel FM;\nFM.CentralBody = Earth;\nFM.PrimaryBodies = {Earth};\nFM.GravityField.Earth.Degree = 8;\nFM.GravityField.Earth.Order = 8;\n\nCreate Propagator Prop;\nProp.FM = FM;\n\nBeginMissionSequence;",
+    "usage": {
+      "completion_tokens": 151,
+      "prompt_tokens": 2962,
+      "total_tokens": 3113
+    }
+  },
+  "github:openai/gpt-4.1-mini:6c84ed9c28d6cfcf": {
+    "text": "Create Spacecraft Sat1;\nSat1.Epoch.UTCGregorian = '01 Jan 2024 12:00:00.000';\nSat1.SMA = 7000;\nSat1.ECC = 0.001;\nSat1.INC = 28.5;\n\nCreate Spacecraft Sat2;\nSat2.Epoch.UTCGregorian = '01 Jan 2024 12:00:00.000';\nSat2.SMA = 7005;\nSat2.ECC = 0.001;\nSat2.INC = 28.5;\n\nCreate Formation Formation1;\nFormation1.Add = {Sat1, Sat2};\n\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\n\nCreate Propagator Prop;\nProp.Type = RungeKutta89;\nProp.FM = FM;\n\nBeginMissionSequence;\nPropagate Prop(Formation1) {Sat1.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 194,
+      "prompt_tokens": 2591,
+      "total_tokens": 2785
+    }
+  },
+  "github:openai/gpt-4.1-mini:6e6113c92009869d": {
+    "text": "Create GroundStation GS;\nGS.CentralBody = Earth;\nGS.StateType = Cartesian;\nGS.HorizonReference = Ellipsoid;\nGS.Location1 = 0;\nGS.Location2 = 0;\nGS.Location3 = 0;\nGS.MinimumElevationAngle = 10;\n\nCreate Spacecraft Sat;\nSat.CoordinateSystem = EarthMJ2000Eq;\nSat.SMA = 7000;\nSat.ECC = 0.001;\nSat.INC = 28.5;\n\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\n\nCreate Propagator Prop;\nProp.FM = FM;\n\nCreate ReportFile rf;\nrf.Filename = 'VisibilityReport.txt';\nrf.Add = {Sat.GS.Elevation};\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};\nReport rf Sat.GS.Elevation;",
+    "usage": {
+      "completion_tokens": 176,
+      "prompt_tokens": 2229,
+      "total_tokens": 2405
+    }
+  },
+  "github:openai/gpt-4.1-mini:709727ac6b624f2b": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7078;  % Earth radius ~6378 km + 700 km altitude\nSat.ECC = 0;\nSat.INC = 0;\nSat.RAAN = 0;\nSat.AOP = 0;\nSat.TA = 0;\n\nCreate ForceModel FM;\nFM.CentralBody = Earth;\nFM.PointMasses = {Earth};\n\nCreate Propagator Prop;\nProp.FM = FM;\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 127,
+      "prompt_tokens": 2661,
+      "total_tokens": 2788
+    }
+  },
+  "github:openai/gpt-4.1-mini:7168b65f629eadb0": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7000;\nSat.ECC = 0.01;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate FiniteBurn fb;\nfb.Axes = VNB;\nCreate Variable halfBurnDuration;\nhalfBurnDuration = 0;\nCreate DifferentialCorrector DC;\nDC.ShowProgress = true;\nDC.ReportStyle = Normal;\nDC.MaximumIterations = 25;\nDC.DerivativeMethod = ForwardDifference;\nDC.Algorithm = NewtonRaphson;\nCreate ReportFile rf;\nrf.Filename = 'output.txt';\nrf.Add = {halfBurnDuration};\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.Earth.Periapsis};\nTarget DC {SolveMode = Solve, ExitMode = DiscardAndContinue};\n   Vary DC(halfBurnDuration = 300, {Perturbation = 0.0001, Lower = 0, Upper = 3000, MaxStep = 100});\n   BeginScript 'Compute Prop Time';\n      backPropDuration = -halfBurnDuration;\n   EndScript;\n   Propagate Prop(Sat) {Sat.ElapsedSecs = backPropDuration};\n   BeginFiniteBurn fb(Sat);\n   Propagate Prop(Sat) {Sat.ElapsedSecs = halfBurnDuration};\n   EndFiniteBurn fb(Sat);\n   Propagate Prop(Sat) {Sat.ElapsedSecs = halfBurnDuration};\n   Propagate Prop(Sat) {Sat.Earth.Apoapsis};\n   Achieve DC(Sat.SMA = 12000, {Tolerance = 0.1});\nEndTarget;\nReport rf halfBurnDuration;",
+    "usage": {
+      "completion_tokens": 358,
+      "prompt_tokens": 2662,
+      "total_tokens": 3020
+    }
+  },
+  "github:openai/gpt-4.1-mini:73be85cdf379c2fd": {
+    "text": "Create Spacecraft ISS;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ReportFile rf;\nrf.Filename = 'ISS_GeodeticReport.txt';\nrf.Add = {ISS.Earth.Latitude, ISS.Earth.Longitude};\nBeginMissionSequence;\nPropagate Prop(ISS) {ISS.ElapsedSecs = 5400};\nReport rf ISS.Earth.Latitude ISS.Earth.Longitude;",
+    "usage": {
+      "completion_tokens": 100,
+      "prompt_tokens": 3237,
+      "total_tokens": 3337
+    }
+  },
+  "github:openai/gpt-4.1-mini:7409a1313872ae04": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7000;\nSat.ECC = 0;\nSat.INC = 0;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ImpulsiveBurn Burn;\nBurn.CoordinateSystem = Local;\nBurn.Origin = Earth;\nBurn.Axes = VNB;\nBurn.Element1 = 0;\nBurn.Element2 = 0;\nBurn.Element3 = 0;\nBurn.DecrementMass = false;\nBurn.Isp = 300;\nBurn.GravitationalAccel = 9.81;\nCreate DifferentialCorrector DC;\nBeginMissionSequence;\nTarget DC {SolveMode = Solve, ExitMode = DiscardAndContinue};\n   Vary DC(Burn.Element3 = 0, {Perturbation = 1e-4, Lower = -1, Upper = 1, MaxStep = 0.1});\n   Maneuver Burn(Sat);\n   Propagate Prop(Sat) {Sat.INC};\n   Achieve DC(Sat.INC = 10, {Tolerance = 1e-3});\nEndTarget;",
+    "usage": {
+      "completion_tokens": 247,
+      "prompt_tokens": 2725,
+      "total_tokens": 2972
+    }
+  },
+  "github:openai/gpt-4.1-mini:7449fea410b3766d": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 6878.137;  % Earth radius + 500 km\nSat.ECC = 0;\nSat.INC = 0;\nSat.A1Epoch = '01 Jan 2024 12:00:00.000';\nSat.EpochFormat = UTCGregorian;\n\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\n\nCreate Propagator Prop;\nProp.FM = FM;\n\nCreate ImpulsiveBurn dv;\ndv.CoordinateSystem = Local;\ndv.Origin = Earth;\ndv.Axes = VNB;\ndv.Element1 = 0.1;  % small prograde burn, adjust as needed\ndv.Element2 = 0;\ndv.Element3 = 0;\ndv.DecrementMass = false;\ndv.Isp = 300;\ndv.GravitationalAccel = 9.81;\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.Earth.Periapsis};\nManeuver dv(Sat);\nPropagate Prop(Sat) {Sat.Earth.Apoapsis};",
+    "usage": {
+      "completion_tokens": 230,
+      "prompt_tokens": 2320,
+      "total_tokens": 2550
+    }
+  },
+  "github:openai/gpt-4.1-mini:83d79a957baba156": {
+    "text": "Create Spacecraft Sat;\nSat.CoordinateSystem = EarthMJ2000Eq;\nSat.SMA = 42164;\nSat.ECC = 0;\nSat.INC = 0;\nSat.RAAN = 0;\nSat.AOP = 0;\nSat.TA = 0;\nSat.Epoch = '01 Jan 2024 12:00:00.000';\n\nCreate ForceModel FM;\nFM.CentralBody = Earth;\nFM.PointMasses = {Earth};\n\nCreate Propagator Prop;\nProp.FM = FM;\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 134,
+      "prompt_tokens": 2890,
+      "total_tokens": 3024
+    }
+  },
+  "github:openai/gpt-4.1-mini:909eaf46af89c83f": {
+    "text": "Create Spacecraft Sat;\nSat.SMA = 6978;  % Earth radius ~6378 km + 600 km altitude\nSat.ECC = 0;\nSat.INC = 0;\nSat.RAAN = 0;\nSat.AOP = 0;\nSat.TA = 0;\nSat.Epoch = '01 Jan 2020 12:00:00.000';\n\nCreate ForceModel FM;\nFM.CentralBody = Earth;\nFM.PointMasses = {Earth};\n\nCreate Propagator Prop;\nProp.FM = FM;\n\nCreate ReportFile rf;\nrf.Filename = 'orbit_period.txt';\nrf.Add = {Sat.ElapsedSecs};\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedSecs = 2*3.141592653589793*sqrt((Sat.SMA^3)/398600.4418)};\nReport rf Sat.ElapsedSecs;",
+    "usage": {
+      "completion_tokens": 187,
+      "prompt_tokens": 2541,
+      "total_tokens": 2728
+    }
+  },
+  "github:openai/gpt-4.1-mini:914abd3f2f85a166": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7000;\nSat.ECC = 0.001;\nSat.INC = 28.5;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ImpulsiveBurn TOI;\nTOI.Axes = VNB;\nCreate ImpulsiveBurn GOI;\nGOI.Axes = VNB;\nCreate DifferentialCorrector DC;\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.Periapsis};\nTarget DC {SolveMode = Solve, ExitMode = DiscardAndContinue};\n   Vary DC(TOI.Element1 = 0.5, {Perturbation = 1e-4, Lower = 0, Upper = 3.14159, MaxStep = 0.2});\n   Maneuver TOI(Sat);\n   Propagate Prop(Sat) {Sat.Apoapsis};\n   Achieve DC(Sat.Earth.SMA = 42164, {Tolerance = 0.1});\n   Vary DC(GOI.Element1 = 0.5, {Perturbation = 1e-4, Lower = 0, Upper = 3.14159, MaxStep = 0.2});\n   Maneuver GOI(Sat);\n   Achieve DC(Sat.Earth.ECC = 0, {Tolerance = 1e-3});\nEndTarget;",
+    "usage": {
+      "completion_tokens": 310,
+      "prompt_tokens": 2629,
+      "total_tokens": 2939
+    }
+  },
+  "github:openai/gpt-4.1-mini:9e97c739356712b6": {
+    "text": "Create Spacecraft Sat;\nSat.SMA = 6678;  % Earth radius ~6378 km + 300 km altitude\nSat.ECC = 0;\nSat.INC = 0;\nSat.AOP = 0;\nSat.RAAN = 0;\nSat.TA = 0;\n\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nFM.Drag.AtmosphereModel = MSISE90;\n\nCreate Propagator Prop;\nProp.FM = FM;\n\nCreate ReportFile rf;\nrf.Filename = 'LowOrbitDrag.txt';\nrf.Add = {Sat.ElapsedDays, Sat.Earth.Altitude, Sat.V};\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 5};\nReport rf Sat.ElapsedDays Sat.Earth.Altitude Sat.V;",
+    "usage": {
+      "completion_tokens": 169,
+      "prompt_tokens": 2603,
+      "total_tokens": 2772
+    }
+  },
+  "github:openai/gpt-4.1-mini:a7c69fe70a88a0fd": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Cartesian;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth, Mars};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ImpulsiveBurn Burn1;\nBurn1.Axes = VNB;\nCreate DifferentialCorrector DC;\nCreate ReportFile rf;\nrf.Filename = 'BPlaneTargetingOutput.txt';\nrf.Add = {Sat.Mars.BdotT, Sat.Mars.BdotR};\nBeginMissionSequence;\nTarget DC {SolveMode = Solve, ExitMode = DiscardAndContinue};\n   Vary DC(Burn1.Element1 = 0.1, {Perturbation = 1e-4, Lower = -3, Upper = 3, MaxStep = 0.2});\n   Maneuver Burn1(Sat);\n   Propagate Prop(Sat) {Sat.Mars.BdotT};\n   Achieve DC(Sat.Mars.BdotT = 0, {Tolerance = 0.1});\n   Achieve DC(Sat.Mars.BdotR = -7000, {Tolerance = 10});\nEndTarget;\nReport rf Sat.Mars.BdotT Sat.Mars.BdotR;",
+    "usage": {
+      "completion_tokens": 249,
+      "prompt_tokens": 2369,
+      "total_tokens": 2618
+    }
+  },
+  "github:openai/gpt-4.1-mini:aa9d6db62c653e12": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 42164;\nSat.ECC = 0.0;\nSat.INC = 0.0;\nCreate ForceModel FM;\nFM.CentralBody = Earth;\nFM.PointMasses = {Sun, Luna};\nFM.SRP = Off;\nFM.RelativisticCorrection = Off;\nFM.ErrorControl = None;\nCreate Propagator Prop;\nProp.FM = FM;\nProp.MinStep = 0;\nCreate ReportFile rf;\nrf.Filename = 'highOrbit.txt';\nrf.Add = {Sat.Earth.SMA, Sat.Earth.ECC, Sat.Earth.INC};\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};\nReport rf Sat.Earth.SMA Sat.Earth.ECC Sat.Earth.INC;",
+    "usage": {
+      "completion_tokens": 178,
+      "prompt_tokens": 2995,
+      "total_tokens": 3173
+    }
+  },
+  "github:openai/gpt-4.1-mini:b5a8809ec9f721b1": {
+    "text": "Create Spacecraft Sat;\nSat.CoordinateSystem = EarthMJ2000Eq;\nSat.SMA = 7000;\nSat.ECC = 0.001;\nSat.INC = 28.5;\n\nCreate ForceModel FM;\nFM.CentralBody = Earth;\nFM.PointMasses = {Earth};\n\nCreate Propagator Prop;\nProp.FM = FM;\n\nCreate GroundTrack GT;\nGT.Add = {Sat};\nGT.CentralBody = Earth;\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 115,
+      "prompt_tokens": 2946,
+      "total_tokens": 3061
+    }
+  },
+  "github:openai/gpt-4.1-mini:b71c0c7c9205ae54": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Cartesian;\nSat.X = 0;\nSat.Y = 0;\nSat.Z = 0;\nSat.VX = 0;\nSat.VY = 0;\nSat.VZ = 0;\nCreate Propagator Prop;\nProp.Type = PrinceDormand78;\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedSecs = 3600};",
+    "usage": {
+      "completion_tokens": 89,
+      "prompt_tokens": 2697,
+      "total_tokens": 2786
+    }
+  },
+  "github:openai/gpt-4.1-mini:b9d57654a7403096": {
+    "text": "Create Spacecraft Sat;\nSat.EphemerisName = 'input.oem';\nCreate Propagator Prop;\nProp.Type = 'CCSDS-OEM';\nCreate EphemerisFile eph;\neph.Spacecraft = Sat;\neph.Filename = 'trajectory.oem';\neph.FileFormat = 'CCSDS-OEM';\neph.CoordinateSystem = EarthMJ2000Eq;\neph.StepSize = 60;\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 112,
+      "prompt_tokens": 2563,
+      "total_tokens": 2675
+    }
+  },
+  "github:openai/gpt-4.1-mini:bd12739d90b7ab78": {
+    "text": "Create Spacecraft Sat;\nCreate ChemicalTank tank1;\ntank1.FuelMass = 1000;\nCreate ChemicalThruster engine1;\nengine1.CoordinateSystem = Local;\nengine1.Origin = Earth;\nengine1.Axes = VNB;\nengine1.ThrustDirection1 = 1;\nengine1.ThrustDirection2 = 0;\nengine1.ThrustDirection3 = 0;\nengine1.Tank = {tank1};\nengine1.DecrementMass = true;\nSat.Tanks = {tank1};\nSat.Thrusters = {engine1};\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate FiniteBurn fb;\nfb.Thrusters = {engine1};\nBeginMissionSequence;\nBeginFiniteBurn fb(Sat);\nPropagate Prop(Sat) {Sat.ElapsedSecs = 60};\nEndFiniteBurn fb(Sat);",
+    "usage": {
+      "completion_tokens": 191,
+      "prompt_tokens": 2361,
+      "total_tokens": 2552
+    }
+  },
+  "github:openai/gpt-4.1-mini:c26da1db9091b762": {
+    "text": "Create Spacecraft Sat;\nSat.SMA = 7000;\nSat.ECC = 0.4;\nSat.INC = 28.5;\nSat.RAAN = 40;\nSat.AOP = 30;\nSat.TA = 0;\n\nCreate ForceModel FM;\nFM.CentralBody = Earth;\nFM.PointMasses = {Earth};\n\nCreate Propagator Prop;\nProp.FM = FM;\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.Earth.Periapsis};",
+    "usage": {
+      "completion_tokens": 109,
+      "prompt_tokens": 2786,
+      "total_tokens": 2895
+    }
+  },
+  "github:openai/gpt-4.1-mini:c826b6ec1d28bb81": {
+    "text": "Create Spacecraft Sat;\nSat.DateFormat = UTCGregorian;\nSat.Epoch = '01 Jun 2026 00:00:00.000';\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 78,
+      "prompt_tokens": 2630,
+      "total_tokens": 2708
+    }
+  },
+  "github:openai/gpt-4.1-mini:ca556d6c9d273cda": {
+    "text": "Create Spacecraft Sat;\nSat.Epoch.UTCGregorian = '01 Jan 2024 00:00:00.000';\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7000;\nSat.ECC = 0.001;\nSat.INC = 28.5;\n\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\n\nCreate Propagator Prop;\nProp.FM = FM;\n\nCreate ReportFile rf;\nrf.Filename = 'output.txt';\nrf.Add = {Sat.UTCGregorian, Sat.Earth.SMA, Sat.Earth.ECC, Sat.Earth.INC, Sat.Earth.TA};\n\nBeginMissionSequence;\n\nFor i = 1 to 24\n    Propagate Prop(Sat) {Sat.ElapsedSecs = 3600};\n    Report rf Sat.UTCGregorian Sat.Earth.SMA Sat.Earth.ECC Sat.Earth.INC Sat.Earth.TA;\nEndFor;",
+    "usage": {
+      "completion_tokens": 203,
+      "prompt_tokens": 2420,
+      "total_tokens": 2623
+    }
+  },
+  "github:openai/gpt-4.1-mini:cb82983ba4f469b4": {
+    "text": "Create Spacecraft Sat;\nSat.DateFormat = UTCGregorian;\nSat.Epoch = '01 Jan 2000 12:00:00.000';\n\nCreate Propagator Prop;\nProp.Type = SPK;\nProp.StepSize = 60;\nProp.StartEpoch = 'FromSpacecraft';\n\nCreate EphemerisFile Eph;\nEph.Spacecraft = Sat;\nEph.Filename = 'SatTrajectory.bsp';\nEph.FileFormat = SPK;\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 115,
+      "prompt_tokens": 2639,
+      "total_tokens": 2754
+    }
+  },
+  "github:openai/gpt-4.1-mini:ce61ab2fa7deba5d": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7000;\nSat.ECC = 0.001;\nSat.INC = 28.5;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nProp.Type = RungeKutta89;\nProp.InitialStepSize = 60;\nProp.Accuracy = 1e-12;\nProp.MinStep = 0;\nProp.MaxStep = 2700;\nProp.MaxStepAttempts = 50;\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 137,
+      "prompt_tokens": 2324,
+      "total_tokens": 2461
+    }
+  },
+  "github:openai/gpt-4.1-mini:cf34c4f8cc4d5fa0": {
+    "text": "Create Spacecraft Sat;\nSat.DateFormat = UTCGregorian;\nSat.Epoch = '01 Jan 2000 12:00:00.000';\n\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\n\nCreate Propagator Prop;\nProp.Type = RungeKutta89;\nProp.FM = FM;\nProp.StepSize = 60;\n\nCreate EphemerisFile EphemOut;\nEphemOut.Filename = 'SatTrajectory.e';\nEphemOut.Format = STK;\nEphemOut.Spacecraft = Sat;\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 130,
+      "prompt_tokens": 2379,
+      "total_tokens": 2509
+    }
+  },
+  "github:openai/gpt-4.1-mini:d8cd8c346214e8eb": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 7000;\nSat.ECC = 0.001;\nSat.INC = 28.5;\nCreate ForceModel FM;\nFM.CentralBody = Earth;\nFM.PointMasses = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate XYPlot plot;\nplot.XVariable = Sat.ElapsedSecs;\nplot.YVariables = {Sat.Earth.Altitude};\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 1};",
+    "usage": {
+      "completion_tokens": 120,
+      "prompt_tokens": 2873,
+      "total_tokens": 2993
+    }
+  },
+  "github:openai/gpt-4.1-mini:e9b439dca34458fb": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Cartesian;\nCreate CoordinateSystem SunPointingVNB;\nSunPointingVNB.Origin = Earth;\nSunPointingVNB.Axes = ObjectReferenced;\nSunPointingVNB.XAxis = V;\nSunPointingVNB.YAxis = N;\nSunPointingVNB.ZAxis = -R;\nSunPointingVNB.Primary = Earth;\nSunPointingVNB.Secondary = Sun;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ReportFile rf;\nrf.Filename = 'SatStateInSunPointingVNB.txt';\nrf.Add = {Sat.SunPointingVNB.X, Sat.SunPointingVNB.Y, Sat.SunPointingVNB.Z, Sat.SunPointingVNB.VX, Sat.SunPointingVNB.VY, Sat.SunPointingVNB.VZ};\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedSecs = 3600};\nReport rf Sat.SunPointingVNB.X Sat.SunPointingVNB.Y Sat.SunPointingVNB.Z Sat.SunPointingVNB.VX Sat.SunPointingVNB.VY Sat.SunPointingVNB.VZ;",
+    "usage": {
+      "completion_tokens": 275,
+      "prompt_tokens": 2470,
+      "total_tokens": 2745
+    }
+  },
+  "github:openai/gpt-4.1-mini:ec8d2c8fe3efca41": {
+    "text": "Create Spacecraft Sat;\nSat.Epoch.UTCGregorian = '01 Jan 2024 00:00:00.000';\nSat.SMA = 7000;\nSat.ECC = 0.001;\nSat.INC = 28.5;\nSat.RAAN = 0;\nSat.AOP = 0;\nSat.TA = 0;\nSat.DisplayStateType = Keplerian;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nProp.Type = PrinceDormand78;\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.ElapsedDays = 3};",
+    "usage": {
+      "completion_tokens": 141,
+      "prompt_tokens": 2424,
+      "total_tokens": 2565
+    }
+  },
+  "github:openai/gpt-4.1-mini:fcf761e3681a1fdb": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 15000;\nSat.ECC = 0.5;\nSat.INC = 0;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ImpulsiveBurn CircularizeBurn;\nCircularizeBurn.Axes = VNB;\nCreate DifferentialCorrector DC;\n\nBeginMissionSequence;\nPropagate Prop(Sat) {Sat.Earth.Apoapsis};\n\nTarget DC {SolveMode = Solve, ExitMode = DiscardAndContinue};\n   Vary DC(CircularizeBurn.Element1 = 0.1, {Perturbation = 1e-4, Lower = 0, Upper = 3, MaxStep = 0.2});\n   Maneuver CircularizeBurn(Sat);\n   Achieve DC(Sat.Earth.ECC = 0, {Tolerance = 1e-4});\nEndTarget;",
+    "usage": {
+      "completion_tokens": 205,
+      "prompt_tokens": 2838,
+      "total_tokens": 3043
+    }
+  },
+  "github:openai/gpt-4.1-mini:ff5bf233d78708dd": {
+    "text": "Create Spacecraft Sat;\nSat.DisplayStateType = Keplerian;\nSat.SMA = 42164;\nSat.ECC = 0;\nSat.INC = 0;\nCreate ForceModel FM;\nFM.PrimaryBodies = {Earth};\nCreate Propagator Prop;\nProp.FM = FM;\nCreate ImpulsiveBurn sk;\nsk.Axes = VNB;\nCreate DifferentialCorrector DC;\nCreate Variable cycle;\nBeginMissionSequence;\nFor cycle = 1:1:10;\n   Propagate Prop(Sat) {Sat.ElapsedDays = 14};\n   Target DC {SolveMode = Solve, ExitMode = DiscardAndContinue};\n      Vary DC(sk.Element1 = 0, {Perturbation = 1e-5, Lower = -0.05, Upper = 0.05, MaxStep = 0.01});\n      Maneuver sk(Sat);\n      Achieve DC(Sat.Earth.SMA = 42164, {Tolerance = 0.5});\n   EndTarget;\nEndFor;",
+    "usage": {
+      "completion_tokens": 215,
+      "prompt_tokens": 2465,
+      "total_tokens": 2680
+    }
+  }
+}

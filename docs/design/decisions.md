@@ -161,3 +161,28 @@ the prompt, retrieved chunks, draft history, and lint / dry-run results.
 
 **Rationale.** One stable contract for `draft()` and the CLI; reserving the provenance shape now avoids
 a v0.2 schema break. (charter)
+
+## D11 — The recorded eval bundle freezes Opus-gold judge verdicts
+
+**Context.** D6 names the cheap `openai/gpt-4.1-mini` judge (N=3 majority) and D7 freezes its verdicts
+into the recorded bundle the per-merge CI replays. But a full judged sweep of the ~50-prompt set is
+~204 GitHub Models calls (≈51 generations + 51×3 judge), which exceeds the free Low-tier **daily**
+per-model cap (measured: the limit reports `x-ratelimit-type: UserByModelByDay`, a multi-hour
+`Retry-After`, and binds at ~65 calls — likely a daily *token* budget, given the RAG-grounded prompts
+are large). A complete `gpt-4.1-mini`-judged sweep therefore cannot finish in one quota window.
+
+**Decision.** The committed recorded bundle freezes **Opus-authored gold verdicts** for the judge
+layer over **`gpt-4.1-mini` generations** for the completions layer. This spends only the ~51
+generation calls (one quota window) and yields gold-quality, deterministic verdicts. The verdicts are
+authored **in-session**, not wired into the package — Opus is *not* added as a judge provider. They
+are stored in `judge.json` in the model-agnostic **un-modeled form** (`{prompt_id: [verdict]}`), which
+`run_recorded` already replays via its fallback, so no judge model is hardcoded and no code changes
+are needed. The **`gpt-4.1-mini` judge stays the live judge** for novel scripts — the
+`workflow_dispatch` gated-eval run and the v0.3 leaderboard — unchanged.
+
+**Rationale.** This is the V3 "judge once with the strongest judge" pattern carried to its conclusion:
+D6 already designates Opus as the gold-label authority the cheap judge is *graded against*, so freezing
+the gold itself is the highest-fidelity choice for a one-time recorded reference — and it is the only
+route that fits the free-tier daily cap in a single window. Honesty is preserved: the completions are
+the real free-tier tool output (what a user gets); the frozen verdicts are labeled gold, not the cheap
+model. (D6 / D7 / the daily-cap measurement)
