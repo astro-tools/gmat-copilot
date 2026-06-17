@@ -24,6 +24,10 @@ jobs:
             python-version: '3.12'
     env:
       UV_PYTHON: ${{ matrix.python-version }}
+      # The suite mocks the embedder everywhere (FakeEmbedder / stubbed retriever), so no test loads
+      # the real model. Enforce that: offline mode fails fast and loud if a test ever reaches for
+      # HuggingFace, instead of silently downloading the model and flaking on a 429 rate limit.
+      HF_HUB_OFFLINE: '1'
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7

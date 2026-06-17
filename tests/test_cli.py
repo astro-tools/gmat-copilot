@@ -7,6 +7,21 @@ from pathlib import Path
 import pytest
 
 from gmat_copilot.cli import main
+from gmat_copilot.result import RetrievalTrace
+
+
+class _OfflineRetriever:
+    """A retriever stand-in that returns an empty trace without loading the embedding model.
+
+    ``draft()`` retrieves before it calls the provider, so a CLI test that wants to reach the
+    provider error path would otherwise download the real embedder. This keeps the test hermetic.
+    """
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        pass
+
+    def retrieve(self, query: str, *, top_k: int | None = None) -> RetrievalTrace:
+        return RetrievalTrace()
 
 
 def test_version(capsys: pytest.CaptureFixture[str]) -> None:
@@ -33,8 +48,13 @@ def test_validate_rejects_broken_script(tmp_path: Path, invalid_script: str) -> 
     assert main(["validate", str(script)]) == 1
 
 
-def test_draft_is_not_wired_yet(capsys: pytest.CaptureFixture[str]) -> None:
-    # The generation pipeline is a stub; the CLI surfaces it as a clean error, not a traceback.
+def test_draft_errors_cleanly_without_credentials(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Stub the retriever so the test needs no network (no embedder download); with no credential the
+    # missing key must surface as a clean exit-2 error, not a traceback.
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr("gmat_copilot.generate.Retriever", _OfflineRetriever)
     assert main(["draft", "a 500 km LEO", "-m", "anthropic:claude-x"]) == 2
     assert "gmat-copilot:" in capsys.readouterr().err
 
