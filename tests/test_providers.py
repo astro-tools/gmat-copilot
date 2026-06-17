@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import email.message
 import importlib
+import io
 import json
+import urllib.error
 import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
@@ -55,6 +58,12 @@ def test_select_resolves_known_provider() -> None:
     provider, model = select("anthropic:claude-x")
     assert provider.name == "anthropic"
     assert model == "claude-x"
+
+
+def test_select_rejects_empty_model() -> None:
+    # "provider:" names a real provider but no model; it must error, not pass model="" downstream.
+    with pytest.raises(ProviderError, match="no model"):
+        select("anthropic:")
 
 
 def test_recorded_replays_deterministically() -> None:
@@ -257,3 +266,104 @@ def test_recording_provider_captures_and_round_trips(tmp_path: Path) -> None:
     replay = RecordedProvider(saved).complete("hi", model="m")
     assert replay.text == "SCRIPT"
     assert replay.provider == "recorded"
+
+
+def test_openai_without_credential_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with pytest.raises(ProviderError, match="OPENAI_API_KEY"):
+        OpenAIProvider().complete("draft", model="gpt-x")
+
+
+def test_ollama_unreachable_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(OllamaProvider, "reachable", lambda self: False)
+    with pytest.raises(ProviderError, match="not reachable"):
+        OllamaProvider().complete("draft", model="llama3")
+
+
+def test_github_without_token_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    for var in ("GH_TOKEN", "MODELS_PAT", "GITHUB_TOKEN"):
+        monkeypatch.delenv(var, raising=False)
+    with pytest.raises(ProviderError, match="no token"):
+        GitHubModelsProvider().complete("draft", model="openai/gpt-4.1-mini")
+
+
+def test_github_http_error_is_wrapped(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A present-but-rejected token (401/429/5xx) must surface as a clean ProviderError carrying the
+    # status, not a raw urllib HTTPError traceback.
+    monkeypatch.setenv("GH_TOKEN", "ght")
+
+    def raise_http(request: urllib.request.Request, timeout: float | None = None) -> object:
+        raise urllib.error.HTTPError(
+            request.full_url, 401, "Unauthorized", email.message.Message(), io.BytesIO(b"bad token")
+        )
+
+    monkeypatch.setattr(urllib.request, "urlopen", raise_http)
+    with pytest.raises(ProviderError) as excinfo:
+        GitHubModelsProvider().complete("draft", model="openai/gpt-4.1-mini")
+    message = str(excinfo.value)
+    assert "401" in message
+    assert "bad token" in message
+
+
+def test_github_url_error_is_wrapped(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GH_TOKEN", "ght")
+
+    def raise_url(request: urllib.request.Request, timeout: float | None = None) -> object:
+        raise urllib.error.URLError("name resolution failed")
+
+    monkeypatch.setattr(urllib.request, "urlopen", raise_url)
+    with pytest.raises(ProviderError, match="could not reach"):
+        GitHubModelsProvider().complete("draft", model="openai/gpt-4.1-mini")
+
+
+def test_github_unexpected_response_shape_is_wrapped(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GH_TOKEN", "ght")
+
+    class FakeResponse:
+        def read(self) -> bytes:
+            return json.dumps({"unexpected": "shape"}).encode("utf-8")
+
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+    def fake_urlopen(request: urllib.request.Request, timeout: float | None = None) -> FakeResponse:
+        return FakeResponse()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(ProviderError, match="unexpected response shape"):
+        GitHubModelsProvider().complete("draft", model="openai/gpt-4.1-mini")
+
+
+def test_ollama_accepts_an_object_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Some ollama clients return an attribute object rather than a mapping; the usage extractor must
+    # read either shape.
+    monkeypatch.setattr(OllamaProvider, "reachable", lambda self: True)
+
+    class Client:
+        def __init__(self, *, host: str) -> None:
+            pass
+
+        def generate(self, **kwargs: object) -> object:
+            return SimpleNamespace(response="SCRIPT", prompt_eval_count=6, eval_count=7)
+
+    _patch_import(monkeypatch, "ollama", SimpleNamespace(Client=Client))
+    completion = OllamaProvider().complete("draft", model="llama3")
+    assert completion.text == "SCRIPT"
+    assert completion.usage == {"prompt_eval_count": 6, "eval_count": 7}
+
+
+def test_recorded_and_recording_providers_are_reachable() -> None:
+    assert RecordedProvider({}).reachable() is True
+    assert RecordingProvider(_FakeProvider()).reachable() is True
+
+
+def test_recording_save_to_a_fresh_path(tmp_path: Path) -> None:
+    out_path = tmp_path / "new-fixtures.json"  # does not exist: the no-merge save branch
+    recorder = RecordingProvider(_FakeProvider())
+    recorder.complete("hi", model="m")
+    recorder.save(out_path)
+    saved = json.loads(out_path.read_text())
+    assert prompt_key("github", "m", "hi") in saved

@@ -173,7 +173,9 @@ def test_no_model_and_no_provider_errors_per_d4() -> None:
 
 
 def test_injected_provider_still_requires_a_model(valid_script: str) -> None:
-    with pytest.raises(ValueError, match="model is required"):
+    # An explicit provider with no model is the same "no model selected" failure as select(None) —
+    # one exception type for both, so the CLI's ProviderError handler catches either path.
+    with pytest.raises(ProviderError, match="no model selected"):
         draft("x", provider=StubProvider(valid_script), retriever=StubRetriever())
 
 

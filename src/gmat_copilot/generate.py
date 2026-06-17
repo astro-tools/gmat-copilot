@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 
-from .providers import Provider, select
+from .providers import Provider, ProviderError, select
 from .rag import Retriever, assemble_context
 from .result import CopilotResult, RetrievalTrace
 from .validate import validate
@@ -164,12 +164,14 @@ def draft(
         :class:`~gmat_copilot.rag.Retriever`.
     :param provider: model provider used to generate; defaults to the one *model* selects.
     :raises DraftRejected: in strict mode, when the draft does not lint clean.
+    :raises ProviderError: when no model is resolved — either *model* is ``None`` with no provider
+        to apply it to, or :func:`~gmat_copilot.providers.select` cannot resolve the selector.
     :returns: the generated script, its lint report, the retrieval trace, and provider metadata.
     """
     if provider is None:
         provider, model = select(model)
     if model is None:
-        raise ValueError("model is required: pass the model name for the supplied provider")
+        raise ProviderError("no model selected: pass the model name for the supplied provider")
 
     retrieval = (retriever or Retriever()).retrieve(request)
     prompt = _compose_prompt(request, retrieval)

@@ -20,6 +20,7 @@ import hashlib
 import importlib
 import json
 import os
+import urllib.error
 import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -258,10 +259,25 @@ class GitHubModelsProvider:
             data=body,
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(request, timeout=120) as response:
-            payload = json.load(response)
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                payload = json.load(response)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace").strip()
+            raise ProviderError(
+                f"github: request failed ({exc.code} {exc.reason})"
+                + (f": {detail}" if detail else "")
+            ) from exc
+        except urllib.error.URLError as exc:
+            raise ProviderError(
+                f"github: could not reach the inference endpoint ({exc.reason})"
+            ) from exc
+        try:
+            text = payload["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ProviderError(f"github: unexpected response shape: {payload!r}") from exc
         return Completion(
-            text=payload["choices"][0]["message"]["content"],
+            text=text or "",
             provider=self.name,
             model=model,
             usage=_int_usage(payload.get("usage", {})),
@@ -375,4 +391,6 @@ def select(spec: str | None) -> tuple[Provider, str]:
     name, model = spec.split(":", 1)
     if name not in _REGISTRY:
         raise ProviderError(f"unknown provider {name!r}; known: {sorted(_REGISTRY)}")
+    if not model:
+        raise ProviderError(f"no model given for provider {name!r}; pass it as {name}:<model>")
     return _REGISTRY[name], model
