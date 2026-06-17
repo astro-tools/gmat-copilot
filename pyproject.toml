@@ -139,9 +139,6 @@ branch = true
 
 [tool.coverage.report]
 show_missing = true
-# Machine-enforce the charter DoD's coverage floor. The CI test job runs with --cov, so this gate
-# fails the build on a regression. Validation and the eval-scoring layer sit individually at
-# 98-100% (the DoD's >=95% tier); this overall floor locks in the integrated surface.
 fail_under = 90
 exclude_also = [
   "if TYPE_CHECKING:",
