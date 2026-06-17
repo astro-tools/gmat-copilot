@@ -7,21 +7,46 @@ from pathlib import Path
 import pytest
 
 from gmat_copilot.cli import main
+from gmat_copilot.generate import _compose_prompt, draft
+from gmat_copilot.providers import RecordedProvider, prompt_key
+from gmat_copilot.rag import Retriever
 from gmat_copilot.result import RetrievalTrace
 
 
-class _OfflineRetriever:
+class _OfflineRetriever(Retriever):
     """A retriever stand-in that returns an empty trace without loading the embedding model.
 
-    ``draft()`` retrieves before it calls the provider, so a CLI test that wants to reach the
-    provider error path would otherwise download the real embedder. This keeps the test hermetic.
+    ``draft()`` retrieves before it calls the provider, so a CLI test that reaches the provider
+    would otherwise download the real embedder. This keeps the test hermetic. It doubles as both a
+    ``retriever=`` instance and a drop-in for ``gmat_copilot.generate.Retriever``.
     """
 
     def __init__(self, *args: object, **kwargs: object) -> None:
-        pass
+        super().__init__()
 
     def retrieve(self, query: str, *, top_k: int | None = None) -> RetrievalTrace:
         return RetrievalTrace()
+
+
+def _install_recorded(
+    monkeypatch: pytest.MonkeyPatch, request: str, model: str, completion_text: str
+) -> RecordedProvider:
+    """Wire ``draft()`` (as the CLI calls it) onto a deterministic recorded provider.
+
+    Patches ``select`` to hand back a :class:`RecordedProvider` keyed on the exact prompt ``draft``
+    composes for *request* under an empty retrieval, and ``Retriever`` to that empty retrieval — so
+    the CLI generates with no network and no credential. Returns an equivalent provider for a direct
+    ``draft()`` call to compare against.
+    """
+    prompt = _compose_prompt(request, RetrievalTrace())
+    fixtures = {
+        prompt_key("github", model, prompt): {"text": completion_text, "usage": {"total_tokens": 7}}
+    }
+    monkeypatch.setattr(
+        "gmat_copilot.generate.select", lambda spec: (RecordedProvider(fixtures), model)
+    )
+    monkeypatch.setattr("gmat_copilot.generate.Retriever", _OfflineRetriever)
+    return RecordedProvider(fixtures)
 
 
 def test_version(capsys: pytest.CaptureFixture[str]) -> None:
@@ -57,6 +82,105 @@ def test_draft_errors_cleanly_without_credentials(
     monkeypatch.setattr("gmat_copilot.generate.Retriever", _OfflineRetriever)
     assert main(["draft", "a 500 km LEO", "-m", "anthropic:claude-x"]) == 2
     assert "gmat-copilot:" in capsys.readouterr().err
+
+
+def test_intent_writes_byte_identical_to_draft(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    valid_script: str,
+) -> None:
+    # The DoD: the CLI's written script is byte-identical to the equivalent draft() call on the same
+    # recorded provider.
+    request = "a 500 km circular LEO"
+    model = "openai/gpt-4.1-mini"
+    provider = _install_recorded(monkeypatch, request, model, f"```script\n{valid_script}```")
+    expected = draft(request, model=model, provider=provider, retriever=_OfflineRetriever())
+
+    out = tmp_path / "mission.script"
+    assert main([request, "-m", f"github:{model}", "-o", str(out)]) == 0
+    assert out.read_text(encoding="utf-8") == expected.script
+    captured = capsys.readouterr()
+    assert "lint: clean" in captured.err
+    assert str(out) in captured.err  # the summary names the file it wrote
+
+
+def test_intent_defaults_output_to_mission_script(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, valid_script: str
+) -> None:
+    request = "a 500 km circular LEO"
+    model = "openai/gpt-4.1-mini"
+    _install_recorded(monkeypatch, request, model, f"```script\n{valid_script}```")
+    monkeypatch.chdir(tmp_path)
+    assert main([request, "-m", f"github:{model}"]) == 0
+    assert (tmp_path / "mission.script").read_text(encoding="utf-8").startswith("Create Spacecraft")
+
+
+def test_intent_writes_to_stdout_with_dash(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, valid_script: str
+) -> None:
+    request = "a 500 km circular LEO"
+    model = "openai/gpt-4.1-mini"
+    provider = _install_recorded(monkeypatch, request, model, f"```script\n{valid_script}```")
+    expected = draft(request, model=model, provider=provider, retriever=_OfflineRetriever())
+    assert main([request, "-m", f"github:{model}", "-o", "-"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == expected.script  # the script went to stdout, unadorned
+    assert "lint: clean" in captured.err
+
+
+def test_intent_strict_rejection_exits_one_and_writes_nothing(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    hallucinated_field_script: str,
+) -> None:
+    # A hallucinated field lints as a WARNING; strict (the default) must reject it (D5), exit
+    # non-zero, and write no file.
+    request = "a LEO with a mistyped field"
+    model = "openai/gpt-4.1-mini"
+    _install_recorded(monkeypatch, request, model, f"```script\n{hallucinated_field_script}```")
+    out = tmp_path / "mission.script"
+    assert main([request, "-m", f"github:{model}", "-o", str(out)]) == 1
+    assert not out.exists()
+    err = capsys.readouterr().err
+    assert "rejected" in err
+    assert "warning(s)" in err
+
+
+def test_intent_permissive_writes_with_warning_summary(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    hallucinated_field_script: str,
+) -> None:
+    request = "a LEO with a mistyped field"
+    model = "openai/gpt-4.1-mini"
+    _install_recorded(monkeypatch, request, model, f"```script\n{hallucinated_field_script}```")
+    out = tmp_path / "mission.script"
+    assert main([request, "-m", f"github:{model}", "-o", str(out), "--permissive"]) == 0
+    assert out.exists()
+    assert "warning(s)" in capsys.readouterr().err
+
+
+def test_intent_without_model_lists_reachable_providers(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # No --model: draft() -> select(None) errors and lists reachable providers (D4); exit 2.
+    assert main(["a 500 km LEO"]) == 2
+    assert "no model selected" in capsys.readouterr().err.lower()
+
+
+def test_draft_alias_matches_the_bare_form(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, valid_script: str
+) -> None:
+    # `gmat-copilot draft "<intent>"` is an alias of the bare form: same generate handler.
+    request = "a 500 km circular LEO"
+    model = "openai/gpt-4.1-mini"
+    _install_recorded(monkeypatch, request, model, f"```script\n{valid_script}```")
+    out = tmp_path / "mission.script"
+    assert main(["draft", request, "-m", f"github:{model}", "-o", str(out)]) == 0
+    assert out.read_text(encoding="utf-8").startswith("Create Spacecraft")
 
 
 def test_eval_live_is_a_noop_stub(capsys: pytest.CaptureFixture[str]) -> None:
