@@ -38,6 +38,17 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
+# Command keywords that, alongside ``BeginMissionSequence``, mark a chunk as a complete worked
+# example (a sample mission sequence or a help "Examples" section) rather than a resource/field
+# reference. Pure relevance ranks these below resource-definition chunks for setup-heavy queries.
+_COMMAND_MARKERS = ("Propagate ", "Maneuver ", "Report ", "Target ", "Optimize ", "BeginFiniteBurn")
+
+
+def _shows_mission_sequence(text: str) -> bool:
+    """Whether a chunk shows mission-sequence command syntax (worth pinning as a worked example)."""
+    return "BeginMissionSequence" in text and any(marker in text for marker in _COMMAND_MARKERS)
+
+
 def _source_label(chunk: CorpusChunk) -> str:
     """A readable source attribution, e.g. ``GMAT help: ImpulsiveBurn.html — Fields``."""
     prefix = _SOURCE_PREFIX.get(chunk.kind, chunk.kind)
@@ -62,12 +73,14 @@ class Retriever:
         *,
         top_k: int = 8,
         token_budget: int = DEFAULT_TOKEN_BUDGET,
+        exemplar_pool: int = 24,
         corpus_dir: Path | None = None,
     ) -> None:
         self._embedder: Embedder | None = None if isinstance(embedder, str) else embedder
         self._embedder_name = embedder if isinstance(embedder, str) else embedder.name
         self.top_k = top_k
         self.token_budget = token_budget
+        self.exemplar_pool = exemplar_pool
         self._corpus_dir = corpus_dir
         self._index: CorpusIndex | None = None
 
@@ -82,20 +95,34 @@ class Retriever:
         """Return the corpus chunks that ground *query*, most relevant first.
 
         Trims the ranked hits to :attr:`token_budget`, keeping whole chunks in rank order and always
-        retaining at least the top hit. The returned trace is exactly the set
-        :func:`assemble_context` formats into the grounding block.
+        retaining at least the top hit. To curb hallucinated command syntax, it also **pins one
+        worked-example chunk** — the best-ranked passage that actually shows a mission sequence —
+        into the grounding even when pure relevance ranks it below the kept set (it commonly does
+        for setup-heavy queries, which retrieve resource definitions but no command syntax). The
+        returned trace is exactly the set :func:`assemble_context` formats into the grounding block.
         """
         index, embedder = self._ensure()
-        hits = index.search(query, embedder=embedder, k=top_k if top_k is not None else self.top_k)
+        k = top_k if top_k is not None else self.top_k
+        # Search a wider pool than k so a worked example can be recovered when it ranks below k.
+        hits = index.search(query, embedder=embedder, k=max(k, self.exemplar_pool))
+
+        exemplar = next((h for h in hits if _shows_mission_sequence(h.chunk.text)), None)
+        reserve = _estimate_tokens(exemplar.chunk.text) if exemplar is not None else 0
 
         kept: list[SearchHit] = []
         used = 0
-        for hit in hits:
+        for hit in hits[:k]:
+            if hit is exemplar:
+                continue  # reserved — appended below so it survives the budget cut
             cost = _estimate_tokens(hit.chunk.text)
-            if kept and used + cost > self.token_budget:
+            if kept and used + cost > self.token_budget - reserve:
                 break
             kept.append(hit)
             used += cost
+
+        if exemplar is not None:
+            kept.append(exemplar)
+            kept.sort(key=lambda h: h.score, reverse=True)  # keep the trace most-relevant-first
 
         chunks = tuple(
             RetrievalChunk(source=_source_label(hit.chunk), score=hit.score, text=hit.chunk.text)
