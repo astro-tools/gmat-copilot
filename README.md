@@ -3,9 +3,9 @@
 **Turn a natural-language request into a GMAT mission `.script` — grounded in the GMAT
 documentation, validated against a static linter, and produced through a model you choose.**
 
-> **Status:** v0.1. Retrieval-grounded generation, the static lint gate, the model-agnostic provider
+> **Status:** Retrieval-grounded generation, the static lint gate, the model-agnostic provider
 > abstraction, the two-layer evaluation suite, and the CLI are all in place. A GMAT dry-run and a
-> repair loop are planned for v0.2.
+> repair loop are planned as a later capability.
 
 gmat-copilot is a library and a CLI for [NASA's General Mission Analysis Tool](https://gmat.gsfc.nasa.gov/).
 Generation is *retrieval-grounded*: a request is answered against relevant GMAT help pages, sample

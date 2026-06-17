@@ -2,7 +2,7 @@
 
 Two valid scripts for the same request differ greatly in text, so the eval cannot diff a draft
 against a golden script. Instead it scores **intent**, in two layers, and aggregates a pass-rate.
-The eval is the v0.1 correctness surface.
+The eval is the tool's correctness surface.
 
 ## Two-layer scoring
 

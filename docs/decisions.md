@@ -17,7 +17,8 @@ context and rationale, and the prerequisite-spike measurements behind each) live
 
 - **Validation.** Generated scripts are checked against the gmat-script linter. In strict mode a draft
   that does not lint clean (no errors *or* warnings) is rejected; permissive mode returns it with the
-  diagnostics attached. A GMAT dry-run that confirms the script actually executes is added in v0.2.
+  diagnostics attached. A GMAT dry-run that confirms the script actually executes is planned as a
+  later capability.
 
 - **Evaluation.** Quality is measured by a two-layer scorer: deterministic structural checks plus an
   LLM-as-judge for whether a script satisfies the request's intent (two valid scripts of the same

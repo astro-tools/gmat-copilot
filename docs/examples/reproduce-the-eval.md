@@ -1,6 +1,6 @@
 # Reproduce the eval
 
-The repository ships a recorded eval bundle, so you can reproduce the v0.1 scores **deterministically
+The repository ships a recorded eval bundle, so you can reproduce the eval scores **deterministically
 — with no model calls, no quota, and no network**. This is the same path CI runs on every merge.
 
 ## Replay the recorded bundle

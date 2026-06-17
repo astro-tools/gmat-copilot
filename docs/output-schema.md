@@ -19,7 +19,7 @@ result = draft("a 500 km circular orbit at 51.6 degrees", model="anthropic:claud
 | `provider` | `str` | the provider that produced the draft |
 | `model` | `str` | the model name |
 | `usage` | `dict[str, int]` | the provider's token counts, when reported |
-| `provenance` | `object \| None` | reserved (see below); `None` in v0.1 |
+| `provenance` | `object \| None` | reserved (see below); always `None` for now |
 
 `result.save(path)` writes `script` to *path* (UTF-8) and returns the written `Path`.
 
@@ -56,6 +56,6 @@ for chunk in result.retrieval.chunks:
 
 `provenance` is reserved for a richer sidecar — the prompt, the retrieved chunks, the draft history,
 and lint/dry-run results — that lands with the dry-run and repair loop. It is kept on the contract
-now so adding it later is not a schema break; in v0.1 it is always `None`.
+now so adding it later is not a schema break; for now it is always `None`.
 
 The full type signatures are in the [API reference](api.md).
