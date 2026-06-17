@@ -1,16 +1,21 @@
 """Prompt construction and the generation pipeline — the public ``draft`` entry point.
 
 ``draft`` ties the layers together: retrieve grounding from the corpus (``rag``), construct the
-prompt, call the selected provider (``providers``), validate the draft (``validate``), and return a
-:class:`~gmat_copilot.result.CopilotResult`. Retrieval and the live provider calls are filled in by
-their feature work; the orchestration, the strict/permissive gate (decision D5), and the result
-assembly are real here and are exercised against injected stand-ins.
+generation prompt, call the selected provider (``providers``), extract the ``.script`` from the
+completion, validate it (``validate``), and return a
+:class:`~gmat_copilot.result.CopilotResult`. The prompt pins an explicit output contract — a single
+fenced GMAT ``.script`` grounded in the retrieved context, no prose — and extraction unwraps that
+fence. Generation is single pass: the draft is generated and validated once, with no repair loop
+(decision D5). The strict/permissive lint gate then decides whether an unclean draft is rejected
+or returned with its diagnostics attached.
 """
 
 from __future__ import annotations
 
+import re
+
 from .providers import Provider, select
-from .rag import Retriever
+from .rag import Retriever, assemble_context
 from .result import CopilotResult, RetrievalTrace
 from .validate import validate
 
@@ -34,16 +39,61 @@ class DraftRejected(RuntimeError):
         )
 
 
-def _compose_prompt(request: str, retrieval: RetrievalTrace) -> str:
-    """Assemble the generation prompt from the *request* and the retrieved grounding.
+# The system framing: pins the task and the output contract so the model emits a script rather than
+# prose or an invented format. Grounding it in retrieved GMAT references curbs hallucinated names.
+_SYSTEM_PROMPT = (
+    "You are a GMAT mission-script generator. Translate the user's request into a single, valid "
+    "GMAT mission `.script`.\n"
+    "\n"
+    "Rules:\n"
+    "- Output only the script — no prose, no explanation, no commentary outside the script.\n"
+    "- Declare every resource with a `Create` statement before any command references it, and "
+    "place all resource setup before `BeginMissionSequence`.\n"
+    "- Use only real GMAT resource types, fields, and commands. Prefer the resource types and "
+    "field names shown in the grounding context below over guessing.\n"
+    "- Return the script inside a single fenced code block tagged `script`."
+)
 
-    Minimal by design: the retrieved chunks are appended as grounding context. The full prompt
-    template — system framing, examples, and the output contract — is built by the generation work.
+# The closing reminder of the output contract — repeated after the request so it is the last thing
+# the model reads before generating.
+_OUTPUT_CONTRACT = (
+    "Return only the GMAT `.script`, inside one ```script fenced code block, with nothing before "
+    "or after it."
+)
+
+# A fenced code block, optionally language-tagged (```script / ```gmat / bare ```). The script the
+# model emits under the output contract is unwrapped from the first such block.
+_FENCE = re.compile(r"```[^\n`]*\n(?P<body>.*?)\n?```", re.DOTALL)
+
+
+def _compose_prompt(request: str, retrieval: RetrievalTrace) -> str:
+    """Assemble the single generation prompt from the *request* and the retrieved grounding.
+
+    Folds the system framing, the source-attributed grounding block built from the retrieval trace
+    (omitted when retrieval is empty), the request, and a closing restatement of the output contract
+    into one message. The provider protocol takes a single ``prompt`` string, so there is no
+    system/user role split to carry the framing separately.
     """
-    if not retrieval.chunks:
-        return request
-    grounding = "\n\n".join(chunk.text for chunk in retrieval.chunks)
-    return f"{request}\n\n# Grounding\n{grounding}"
+    sections = [_SYSTEM_PROMPT]
+    context = assemble_context(retrieval)
+    if context:
+        sections.append(f"# Grounding context\nGMAT references for this request:\n\n{context}")
+    sections.append(f"# Request\n{request}")
+    sections.append(f"# Output\n{_OUTPUT_CONTRACT}")
+    return "\n\n".join(sections)
+
+
+def _extract_script(text: str) -> str:
+    """Return the ``.script`` from a completion, unwrapping a fenced block when one is present.
+
+    The output contract asks for a single fenced block; this pulls its content, dropping the fence
+    and any language tag. A completion with no fence is returned unchanged, so a contract violation
+    surfaces as a lint failure (in strict mode) rather than being silently mangled.
+    """
+    match = _FENCE.search(text)
+    if match is None:
+        return text
+    return match.group("body").strip()
 
 
 def draft(
@@ -87,9 +137,10 @@ def draft(
     completion = provider.complete(
         prompt, model=model, temperature=temperature, max_tokens=max_tokens
     )
-    report = validate(completion.text)
+    script = _extract_script(completion.text)
+    report = validate(script)
     result = CopilotResult(
-        script=completion.text,
+        script=script,
         lint=report,
         retrieval=retrieval,
         provider=completion.provider,

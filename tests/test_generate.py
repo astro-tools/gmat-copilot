@@ -13,7 +13,14 @@ from pathlib import Path
 import pytest
 
 from gmat_copilot import CopilotResult, DraftRejected, draft
-from gmat_copilot.providers import Completion, Provider, ProviderError
+from gmat_copilot.generate import _compose_prompt
+from gmat_copilot.providers import (
+    Completion,
+    Provider,
+    ProviderError,
+    RecordedProvider,
+    prompt_key,
+)
 from gmat_copilot.rag import Retriever
 from gmat_copilot.result import RetrievalChunk, RetrievalTrace
 
@@ -36,6 +43,7 @@ class StubProvider:
 
     def __init__(self, script: str) -> None:
         self._script = script
+        self.last_prompt: str | None = None
 
     def reachable(self) -> bool:
         return True
@@ -43,6 +51,7 @@ class StubProvider:
     def complete(
         self, prompt: str, *, model: str, temperature: float = 0.0, max_tokens: int = 1024
     ) -> Completion:
+        self.last_prompt = prompt
         return Completion(
             text=self._script, provider=self.name, model=model, usage={"total_tokens": 1}
         )
@@ -126,3 +135,98 @@ def test_no_model_and_no_provider_errors_per_d4() -> None:
 def test_injected_provider_still_requires_a_model(valid_script: str) -> None:
     with pytest.raises(ValueError, match="model is required"):
         draft("x", provider=StubProvider(valid_script), retriever=StubRetriever())
+
+
+def test_prompt_pins_the_output_contract_and_includes_grounding(valid_script: str) -> None:
+    chunks = (
+        RetrievalChunk(
+            source="GMAT sample: ex_leo.script", score=0.9, text="Create Spacecraft Sat;"
+        ),
+    )
+    provider = StubProvider(valid_script)
+    draft("a 500 km circular LEO", model="m", provider=provider, retriever=StubRetriever(chunks))
+
+    prompt = provider.last_prompt
+    assert prompt is not None
+    # The intent and the retrieved grounding (text + source label) both reach the model.
+    assert "a 500 km circular LEO" in prompt
+    assert "Create Spacecraft Sat;" in prompt
+    assert "GMAT sample: ex_leo.script" in prompt
+    # The output contract is pinned: a fenced .script, resources before use, no prose.
+    assert "```script" in prompt
+    assert "BeginMissionSequence" in prompt
+    assert "no prose" in prompt.lower()
+
+
+def test_prompt_omits_grounding_when_retrieval_is_empty(valid_script: str) -> None:
+    provider = StubProvider(valid_script)
+    draft("anything", model="m", provider=provider, retriever=StubRetriever())
+
+    prompt = provider.last_prompt
+    assert prompt is not None
+    assert "# Grounding context" not in prompt
+    # The contract is still pinned without any grounding.
+    assert "```script" in prompt
+    assert "anything" in prompt
+
+
+def test_fenced_completion_is_unwrapped_to_the_script(valid_script: str) -> None:
+    result = draft(
+        "a 500 km LEO",
+        model="m",
+        provider=StubProvider(f"```script\n{valid_script}```"),
+        retriever=StubRetriever(),
+    )
+    assert result.script == valid_script.strip()
+    assert result.lint.clean
+
+
+def test_fenced_extraction_ignores_surrounding_prose(valid_script: str) -> None:
+    noisy = "Here is your mission script:\n\n```\n" + valid_script + "```\n\nHope that helps!"
+    result = draft(
+        "a 500 km LEO",
+        model="m",
+        provider=StubProvider(noisy),
+        retriever=StubRetriever(),
+    )
+    assert result.script == valid_script.strip()
+    assert result.lint.clean
+
+
+def test_unfenced_completion_passes_through_verbatim(valid_script: str) -> None:
+    result = draft(
+        "a 500 km LEO",
+        model="m",
+        provider=StubProvider(valid_script),
+        retriever=StubRetriever(),
+    )
+    # No fence: returned byte-for-byte, including the trailing newline.
+    assert result.script == valid_script
+
+
+def test_recorded_provider_drives_draft_deterministically(valid_script: str) -> None:
+    request = "a 500 km circular LEO"
+    chunks = (
+        RetrievalChunk(
+            source="GMAT sample: ex_leo.script", score=0.9, text="Create Spacecraft Sat;"
+        ),
+    )
+    retriever = StubRetriever(chunks)
+    model = "openai/gpt-4.1-mini"
+    # Key the fixture on the exact prompt draft() composes, with the script fenced per the contract.
+    prompt = _compose_prompt(request, RetrievalTrace(chunks=chunks))
+    fixtures = {
+        prompt_key("github", model, prompt): {
+            "text": f"```script\n{valid_script}```",
+            "usage": {"total_tokens": 7},
+        }
+    }
+    provider = RecordedProvider(fixtures)
+
+    first = draft(request, model=model, provider=provider, retriever=retriever)
+    second = draft(request, model=model, provider=provider, retriever=retriever)
+
+    assert first.script == second.script == valid_script.strip()
+    assert first.lint.clean
+    assert first.provider == "recorded"
+    assert first.usage == {"total_tokens": 7}
