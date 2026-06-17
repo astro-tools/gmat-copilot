@@ -38,7 +38,15 @@ theme:
 nav:
   - Home: index.md
   - Getting started: getting-started.md
+  - Examples:
+      - Draft a Hohmann transfer: examples/hohmann.md
+      - Reproduce the eval: examples/reproduce-the-eval.md
+      - Add a provider: examples/add-a-provider.md
+  - Providers & auth: providers.md
   - Validation: validation.md
+  - Result schema: output-schema.md
+  - Evaluation: evaluation.md
+  - Corpus & licences: corpus.md
   - API reference: api.md
   - Design:
       - Decisions: decisions.md

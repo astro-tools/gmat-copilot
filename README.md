@@ -3,9 +3,9 @@
 **Turn a natural-language request into a GMAT mission `.script` — grounded in the GMAT
 documentation, validated against a static linter, and produced through a model you choose.**
 
-> **Status:** early development (v0.1). The public surface (`draft` and `CopilotResult`) and the
-> validation contract are settled; the generation, retrieval, and evaluation internals are landing
-> feature by feature.
+> **Status:** Retrieval-grounded generation, the static lint gate, the model-agnostic provider
+> abstraction, the two-layer evaluation suite, and the CLI are all in place. A GMAT dry-run and a
+> repair loop are planned as a later capability.
 
 gmat-copilot is a library and a CLI for [NASA's General Mission Analysis Tool](https://gmat.gsfc.nasa.gov/).
 Generation is *retrieval-grounded*: a request is answered against relevant GMAT help pages, sample
@@ -24,6 +24,8 @@ The base install is light and **GMAT-free**. Add the provider you use as an extr
 ```bash
 pip install "gmat-copilot[anthropic]"   # or [openai], or [ollama]
 ```
+
+GitHub Models (the free-tier path the eval and CI use) needs no extra — it works on the base install.
 
 ## Use it
 
@@ -76,8 +78,10 @@ actually executes — plus a repair loop — is a later, optional capability beh
 
 ## Documentation
 
-Full docs (getting started, the validation contract, API reference, and the design decisions) are at
-**<https://astro-tools.github.io/gmat-copilot/>**.
+Full docs are at **<https://astro-tools.github.io/gmat-copilot/>** — getting started, the
+provider/auth model, the validation contract, the result schema, the evaluation protocol, the corpus
+and its licences, worked examples (draft a Hohmann transfer, reproduce the eval, add a provider), an
+API reference, and the design decisions.
 
 ## License
 

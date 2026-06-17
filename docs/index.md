@@ -10,13 +10,13 @@ model writes against real syntax rather than from memory. Every draft is checked
 
 ## Principles
 
-- **Model-agnostic, no default.** Generation goes through one provider abstraction with adapters for
-  Claude, OpenAI, Ollama, and GitHub Models. There is no default model — you choose one explicitly;
-  with none chosen the tool lists the providers it can reach rather than picking for you. API keys
-  are read from the environment, never committed.
-- **Validated, not just generated.** A draft is checked by the static lint gate. In strict mode a
-  script that does not lint clean (no errors *or* warnings) is rejected; permissive mode returns the
-  best-effort script with the diagnostics attached.
+- **Model-agnostic, no default.** Generation goes through one [provider abstraction](providers.md)
+  with adapters for Claude, OpenAI, Ollama, and GitHub Models. There is no default model — you choose
+  one explicitly; with none chosen the tool lists the providers it can reach rather than picking for
+  you. API keys are read from the environment, never committed.
+- **Validated, not just generated.** A draft is checked by the [static lint gate](validation.md). In
+  strict mode a script that does not lint clean (no errors *or* warnings) is rejected; permissive
+  mode returns the best-effort script with the diagnostics attached.
 - **GMAT-free to generate.** Generation and lint validation need no GMAT install. A dynamic GMAT
   dry-run that confirms a script actually executes is a later, optional capability.
 - **Light by default.** A bare install pulls no provider SDK and no GMAT stack — you add only the
@@ -29,5 +29,7 @@ model writes against real syntax rather than from memory. Every draft is checked
   physics. Always review and run generated scripts.
 - It does **not** ship or recommend a model, and it never silently falls back to one.
 
-See **[Getting started](getting-started.md)** to install and draft your first script, and the
-**[Design decisions](decisions.md)** for the choices that shape the tool.
+See **[Getting started](getting-started.md)** to install and draft your first script, then
+**[draft a Hohmann transfer](examples/hohmann.md)**. The [evaluation protocol](evaluation.md) and the
+[corpus and its licences](corpus.md) document how quality is measured and what grounds generation;
+the **[Design decisions](decisions.md)** record the choices that shape the tool.
