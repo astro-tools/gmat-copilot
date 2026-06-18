@@ -7,9 +7,11 @@ returns; the package is GMAT-free for generation and validation.
 
 from __future__ import annotations
 
+from .dryrun import GmatExtraNotInstalled, dry_run
 from .generate import DraftRejected, draft
 from .result import (
     CopilotResult,
+    DryRunReport,
     LintDiagnostic,
     LintReport,
     RetrievalChunk,
@@ -20,11 +22,14 @@ from .result import (
 __all__ = [
     "CopilotResult",
     "DraftRejected",
+    "DryRunReport",
+    "GmatExtraNotInstalled",
     "LintDiagnostic",
     "LintReport",
     "RetrievalChunk",
     "RetrievalTrace",
     "Severity",
     "draft",
+    "dry_run",
 ]
 __version__ = "0.1.0"

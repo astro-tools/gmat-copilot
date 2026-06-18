@@ -91,3 +91,24 @@ def hallucinated_resource_script() -> str:
 def eval_bundle() -> Path:
     """The committed deterministic recorded-eval bundle (the full 51-prompt suite)."""
     return DATA / "eval"
+
+
+@pytest.fixture
+def dryrun_data() -> Path:
+    """Root of the lint-clean dry-run fixtures (load- and run-tier defects, a converging target)."""
+    return DATA / "dryrun"
+
+
+@pytest.fixture
+def require_gmat() -> None:
+    """Skip unless gmat-run (the ``[gmat]`` extra) and a discoverable GMAT install are present."""
+    pytest.importorskip("gmat_run")
+    from gmat_run import GmatNotFoundError
+    from gmat_run.install import locate_gmat
+
+    try:
+        locate_gmat(None)
+    except GmatNotFoundError:
+        pytest.skip(
+            "no GMAT install discoverable (set GMAT_ROOT or install to a standard location)"
+        )

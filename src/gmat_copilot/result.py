@@ -15,6 +15,7 @@ from gmat_script import Severity
 
 __all__ = [
     "CopilotResult",
+    "DryRunReport",
     "LintDiagnostic",
     "LintReport",
     "RetrievalChunk",
@@ -72,6 +73,32 @@ class LintReport:
         return tuple(
             d for d in self.diagnostics if d.severity in (Severity.ERROR, Severity.WARNING)
         )
+
+
+@dataclass(frozen=True, slots=True)
+class DryRunReport:
+    """The dynamic gmat-run dry-run finding for a script — a separate tier from the lint report.
+
+    The dry-run runs only on a lint-clean script (decision D12): ``Mission.load`` is the config
+    tier, and ``mission.run`` + ``Results.converged`` the execution tier, entered only when the
+    script has a solver (``Target`` / ``Optimize``). Dry-run findings do **not** merge into
+    :class:`LintReport` — lint diagnostics are precise (rule / severity / line / column) and a
+    dry-run finding is coarser, so it lands here. ``ok`` is the blocking signal: a not-``ok`` report
+    rejects in strict mode, just as a blocking lint diagnostic does.
+    """
+
+    #: The tier the verdict came from: ``"load"`` (config) or ``"run"`` (execution); ``"crash"`` /
+    #: ``"timeout"`` when the dry-run subprocess died or exceeded its wall-clock budget.
+    tier: str
+    #: True when the script loads (and, if a solver is present, runs and converges).
+    ok: bool
+    #: Per-solver convergence from ``Results.converged`` (solver name -> converged), or ``None``
+    #: when the execution tier was not entered (no solver, or the dry-run failed at load).
+    converged: dict[str, bool] | None
+    #: One actionable, path-free line distilled from GMAT's diagnostics; ``""`` when ``ok``.
+    one_line: str
+    #: The raw GMAT log the one-line was distilled from (path-sanitised); ``""`` when ``ok``.
+    raw_log: str
 
 
 @dataclass(frozen=True, slots=True)
