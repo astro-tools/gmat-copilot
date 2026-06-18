@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 
+from .provenance import Outcome, Provenance
 from .providers import Completion, Provider, ProviderError, select
 from .rag import Retriever, assemble_context
 from .repair import aggregate_usage, build_repair_prompt, draft_hash, evaluate
@@ -167,8 +168,9 @@ def draft(
     Orchestrates retrieve → generate → validate, wrapped in a bounded repair loop (decision D13):
     on a failing draft the failing tier's diagnostics are fed back and the model regenerates, up to
     *repair* attempts, stopping on the first clean/runnable draft or on no-progress / oscillation.
-    Returns a :class:`~gmat_copilot.result.CopilotResult` for the final draft, with the per-attempt
-    history attached as a :class:`~gmat_copilot.result.RepairTrace` on ``provenance``.
+    Returns a :class:`~gmat_copilot.result.CopilotResult` for the final draft, with a versioned
+    :class:`~gmat_copilot.provenance.Provenance` record (request, retrieval, the per-attempt
+    history, and the outcome — decision D14) attached on ``provenance``.
 
     :param request: what the script should do, in natural language.
     :param model: the ``"provider:model"`` selector (decision D4 — there is no default; selection is
@@ -195,7 +197,7 @@ def draft(
         to apply it to, or :func:`~gmat_copilot.providers.select` cannot resolve the selector.
     :raises ValueError: when *repair* is negative.
     :returns: the final draft's script, its lint report (and dry-run verdict), the retrieval trace,
-        provider metadata, aggregate usage, and the repair trace on ``provenance``.
+        provider metadata, aggregate usage, and the provenance record on ``provenance``.
     """
     if repair < 0:
         raise ValueError(f"repair budget must be >= 0, got {repair}")
@@ -247,15 +249,29 @@ def draft(
 
     assert last is not None  # range(repair + 1) runs at least once (repair >= 0)
     final = attempts[-1]
+    usage = aggregate_usage(tuple(attempts))
+    provenance = Provenance(
+        request=request,
+        provider=last.provider,
+        model=last.model,
+        retrieval=retrieval,
+        repair=RepairTrace(attempts=tuple(attempts), stop_reason=stop_reason),
+        outcome=Outcome(
+            winner=len(attempts) - 1,
+            passed=final.passed,
+            strict=strict,
+            usage=usage,
+        ),
+    )
     result = CopilotResult(
         script=final.script,
         lint=final.lint,
         retrieval=retrieval,
         provider=last.provider,
         model=last.model,
-        usage=aggregate_usage(tuple(attempts)),
+        usage=usage,
         dry_run=final.dry_run,
-        provenance=RepairTrace(attempts=tuple(attempts), stop_reason=stop_reason),
+        provenance=provenance,
     )
     dry_failed = final.dry_run is not None and not final.dry_run.ok
     if strict and (final.lint.blocking(strict=True) or dry_failed):

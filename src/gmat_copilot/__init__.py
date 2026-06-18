@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .dryrun import GmatExtraNotInstalled, dry_run
 from .generate import DraftRejected, draft
+from .provenance import Outcome, Provenance, read_sidecar, write_sidecar
 from .result import (
     CopilotResult,
     DraftAttempt,
@@ -29,11 +30,15 @@ __all__ = [
     "GmatExtraNotInstalled",
     "LintDiagnostic",
     "LintReport",
+    "Outcome",
+    "Provenance",
     "RepairTrace",
     "RetrievalChunk",
     "RetrievalTrace",
     "Severity",
     "draft",
     "dry_run",
+    "read_sidecar",
+    "write_sidecar",
 ]
 __version__ = "0.1.0"

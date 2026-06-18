@@ -10,15 +10,22 @@ from __future__ import annotations
 import pytest
 
 from conftest import SequenceProvider, StubRetriever
-from gmat_copilot import DraftRejected, RepairTrace, draft
+from gmat_copilot import CopilotResult, DraftRejected, Provenance, draft
 from gmat_copilot import repair as repair_mod
 from gmat_copilot.repair import aggregate_usage, build_repair_prompt, draft_hash, evaluate
-from gmat_copilot.result import DraftAttempt, DryRunReport, LintReport
+from gmat_copilot.result import DraftAttempt, DryRunReport, LintReport, RepairTrace
 
 # Two distinct lint-failing drafts and a third, for oscillation / budget tests.
 _BAD_A = "@@@ bad draft A @@@"
 _BAD_B = "### bad draft B ###"
 _BAD_C = "&&& bad draft C &&&"
+
+
+def _repair_trace(result: CopilotResult) -> RepairTrace:
+    """The D13 repair trace nested in a result's D14 provenance record."""
+    prov = result.provenance
+    assert isinstance(prov, Provenance)
+    return prov.repair
 
 
 # --------------------------------------------------------------------------- evaluate (lint-first)
@@ -126,8 +133,7 @@ def test_repair_zero_is_a_single_pass(valid_script: str, stub_retriever: StubRet
     assert result.dry_run is None
     assert result.usage == {"total_tokens": 1}  # the single completion's usage, unchanged
     assert len(provider.prompts) == 1  # exactly one generation, no regeneration
-    trace = result.provenance
-    assert isinstance(trace, RepairTrace)
+    trace = _repair_trace(result)
     assert trace.stop_reason == "clean"
     assert len(trace.attempts) == 1
 
@@ -141,8 +147,7 @@ def test_repair_zero_strict_raises_after_one_attempt(
     assert len(provider.prompts) == 1  # budget 0 never regenerates
     rejected = excinfo.value.result
     assert rejected.script == invalid_script
-    trace = rejected.provenance
-    assert isinstance(trace, RepairTrace)
+    trace = _repair_trace(rejected)
     assert trace.stop_reason == "budget"
 
 
@@ -160,8 +165,7 @@ def test_repair_converges_bad_then_good(
     # The repair prompt carried the failing draft and its diagnostics.
     assert invalid_script in provider.prompts[1]
     assert "Problems to fix" in provider.prompts[1]
-    trace = result.provenance
-    assert isinstance(trace, RepairTrace)
+    trace = _repair_trace(result)
     assert trace.stop_reason == "clean"
     assert len(trace.attempts) == 2
     assert trace.attempts[0].feedback_tier == "lint"
@@ -175,8 +179,7 @@ def test_repair_stops_on_no_progress(invalid_script: str, stub_retriever: StubRe
     with pytest.raises(DraftRejected) as excinfo:
         draft("broken", model="m", provider=provider, retriever=stub_retriever, repair=5)
     assert len(provider.prompts) == 2  # attempt 0 + one identical re-draft
-    trace = excinfo.value.result.provenance
-    assert isinstance(trace, RepairTrace)
+    trace = _repair_trace(excinfo.value.result)
     assert trace.stop_reason == "no-progress"
 
 
@@ -186,8 +189,7 @@ def test_repair_stops_on_oscillation(stub_retriever: StubRetriever) -> None:
     with pytest.raises(DraftRejected) as excinfo:
         draft("broken", model="m", provider=provider, retriever=stub_retriever, repair=5)
     assert len(provider.prompts) == 3  # A, B, A(=oscillation)
-    trace = excinfo.value.result.provenance
-    assert isinstance(trace, RepairTrace)
+    trace = _repair_trace(excinfo.value.result)
     assert trace.stop_reason == "oscillation"
 
 
@@ -198,8 +200,7 @@ def test_repair_exhausts_the_budget_on_persistent_distinct_failures(
     with pytest.raises(DraftRejected) as excinfo:
         draft("broken", model="m", provider=provider, retriever=stub_retriever, repair=2)
     assert len(provider.prompts) == 3  # attempts 0, 1, 2 — all distinct failures
-    trace = excinfo.value.result.provenance
-    assert isinstance(trace, RepairTrace)
+    trace = _repair_trace(excinfo.value.result)
     assert trace.stop_reason == "budget"
     assert len(trace.attempts) == 3
 
@@ -213,8 +214,7 @@ def test_permissive_returns_the_final_draft_with_diagnostics(
     )
     assert result.script == _BAD_B  # the final draft, returned not raised
     assert not result.lint.clean
-    trace = result.provenance
-    assert isinstance(trace, RepairTrace)
+    trace = _repair_trace(result)
     assert trace.stop_reason == "budget"
 
 
@@ -263,8 +263,7 @@ def test_loop_repairs_on_dry_run_feedback(
     assert result.script == second
     assert result.dry_run is not None and result.dry_run.ok
     assert "bad eccentricity" in provider.prompts[1]  # the dry-run one-line was fed back
-    trace = result.provenance
-    assert isinstance(trace, RepairTrace)
+    trace = _repair_trace(result)
     assert trace.stop_reason == "clean"
     assert trace.attempts[0].feedback_tier == "load"
     assert trace.attempts[0].dry_run is not None and not trace.attempts[0].dry_run.ok
