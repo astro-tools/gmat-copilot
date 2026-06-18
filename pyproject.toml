@@ -51,6 +51,7 @@ gmat = ["gmat-run>=0.6"]
 
 [project.scripts]
 gmat-copilot = "gmat_copilot.cli:main"
+gmat-copilot-worker = "gmat_copilot.worker:main"
 
 [project.urls]
 Homepage = "https://github.com/astro-tools/gmat-copilot"
