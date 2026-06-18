@@ -2,38 +2,52 @@
 
 ``draft`` ties the layers together: retrieve grounding from the corpus (``rag``), construct the
 generation prompt, call the selected provider (``providers``), extract the ``.script`` from the
-completion, validate it (``validate``), and return a
+completion, validate it (``validate`` and — when enabled — the gmat-run dry-run), and return a
 :class:`~gmat_copilot.result.CopilotResult`. The prompt pins an explicit output contract — a single
 fenced GMAT ``.script`` grounded in the retrieved context, no prose — and extraction unwraps that
-fence. Generation is single pass: the draft is generated and validated once, with no repair loop
-(decision D5). The strict/permissive lint gate then decides whether an unclean draft is rejected
-or returned with its diagnostics attached.
+fence.
+
+Generation is wrapped in a **bounded repair loop** (decision D13): a failing draft's diagnostics are
+fed back and the model regenerates, up to a retry budget, stopping on the first clean/runnable draft
+or on no-progress / oscillation. The budget defaults to ``0`` — a single pass, the v0.1 behaviour.
+The strict/permissive gate then decides whether an unclean final draft is rejected or returned with
+its diagnostics attached.
 """
 
 from __future__ import annotations
 
 import re
 
-from .providers import Provider, ProviderError, select
+from .providers import Completion, Provider, ProviderError, select
 from .rag import Retriever, assemble_context
-from .result import CopilotResult, RetrievalTrace
-from .validate import validate
+from .repair import aggregate_usage, build_repair_prompt, draft_hash, evaluate
+from .result import CopilotResult, DraftAttempt, RepairTrace, RetrievalTrace
 
 __all__ = ["DraftRejected", "draft"]
 
 
 class DraftRejected(RuntimeError):
-    """Strict :func:`draft` rejected a draft that did not lint clean (decision D5).
+    """Strict :func:`draft` rejected the final draft for blocking diagnostics (decisions D5 / D13).
 
-    The offending :class:`~gmat_copilot.result.CopilotResult` is attached as :attr:`result`, so the
-    caller can inspect the script and its diagnostics.
+    Raised only after the repair budget is spent. The offending
+    :class:`~gmat_copilot.result.CopilotResult` is attached as :attr:`result`, so the caller can
+    inspect the script, its lint report, and any dry-run verdict.
     """
 
     def __init__(self, result: CopilotResult) -> None:
         self.result = result
         blocking = result.lint.blocking(strict=True)
+        parts = []
+        if blocking:
+            parts.append(f"{len(blocking)} blocking lint diagnostic(s)")
+        dry = result.dry_run
+        if dry is not None and not dry.ok:
+            parts.append(f"a dry-run failure at the {dry.tier} tier ({dry.one_line})")
+        # A lint failure short-circuits the dry-run (decision D13), so exactly one part is present
+        # whenever this is raised; the join is defensive.
+        detail = " and ".join(parts)
         super().__init__(
-            f"strict mode rejected the draft: {len(blocking)} blocking diagnostic(s) "
+            f"strict mode rejected the draft after the repair budget: {detail} "
             "(lint errors and warnings both block; use permissive mode to return the "
             "best-effort draft with diagnostics attached)"
         )
@@ -144,50 +158,106 @@ def draft(
     max_tokens: int = 2048,
     retriever: Retriever | None = None,
     provider: Provider | None = None,
+    repair: int = 0,
+    dry_run: bool = False,
+    gmat_root: str | None = None,
 ) -> CopilotResult:
     """Generate a GMAT mission ``.script`` from a natural-language *request*.
 
-    Orchestrates retrieve → generate → validate and returns a
-    :class:`~gmat_copilot.result.CopilotResult`.
+    Orchestrates retrieve → generate → validate, wrapped in a bounded repair loop (decision D13):
+    on a failing draft the failing tier's diagnostics are fed back and the model regenerates, up to
+    *repair* attempts, stopping on the first clean/runnable draft or on no-progress / oscillation.
+    Returns a :class:`~gmat_copilot.result.CopilotResult` for the final draft, with the per-attempt
+    history attached as a :class:`~gmat_copilot.result.RepairTrace` on ``provenance``.
 
     :param request: what the script should do, in natural language.
     :param model: the ``"provider:model"`` selector (decision D4 — there is no default; selection is
         always explicit). When *provider* is supplied this is the bare model name handed to it;
         otherwise it is resolved with :func:`~gmat_copilot.providers.select`, which errors and lists
         the reachable providers when it is ``None``.
-    :param strict: reject a draft that does not lint clean — lint ERROR *and* WARNING both block
-        (decision D5) — by raising :class:`DraftRejected`. Permissive (``strict=False``) returns the
-        best-effort script with every diagnostic attached.
+    :param strict: reject the final draft if it does not validate clean — lint ERROR *and* WARNING
+        both block (decision D5), and a dry-run failure blocks when the dynamic tier is enabled — by
+        raising :class:`DraftRejected` once the budget is spent. Permissive (``strict=False``)
+        returns the best-effort draft with every diagnostic attached.
     :param temperature: sampling temperature passed to the provider.
     :param max_tokens: maximum number of tokens to generate.
     :param retriever: corpus retriever used to ground generation; defaults to a
-        :class:`~gmat_copilot.rag.Retriever`.
+        :class:`~gmat_copilot.rag.Retriever`. Retrieval is computed once from *request* and reused
+        across repair attempts.
     :param provider: model provider used to generate; defaults to the one *model* selects.
-    :raises DraftRejected: in strict mode, when the draft does not lint clean.
+    :param repair: the retry budget for the repair loop (decision D13). ``0`` (the default) is a
+        single pass — the v0.1 behaviour.
+    :param dry_run: enable the dynamic gmat-run dry-run tier (decision D12) in validation; needs the
+        ``[gmat]`` extra and a GMAT install. Off by default, keeping generation GMAT-free.
+    :param gmat_root: GMAT install root forwarded to the dry-run (else ``GMAT_ROOT`` / discovery).
+    :raises DraftRejected: in strict mode, when the final draft still has blocking diagnostics.
     :raises ProviderError: when no model is resolved — either *model* is ``None`` with no provider
         to apply it to, or :func:`~gmat_copilot.providers.select` cannot resolve the selector.
-    :returns: the generated script, its lint report, the retrieval trace, and provider metadata.
+    :raises ValueError: when *repair* is negative.
+    :returns: the final draft's script, its lint report (and dry-run verdict), the retrieval trace,
+        provider metadata, aggregate usage, and the repair trace on ``provenance``.
     """
+    if repair < 0:
+        raise ValueError(f"repair budget must be >= 0, got {repair}")
     if provider is None:
         provider, model = select(model)
     if model is None:
         raise ProviderError("no model selected: pass the model name for the supplied provider")
 
     retrieval = (retriever or Retriever()).retrieve(request)
-    prompt = _compose_prompt(request, retrieval)
-    completion = provider.complete(
-        prompt, model=model, temperature=temperature, max_tokens=max_tokens
-    )
-    script = _extract_script(completion.text)
-    report = validate(script)
+    attempts: list[DraftAttempt] = []
+    history: list[str] = []
+    current_request = request
+    stop_reason = "budget"
+    last: Completion | None = None
+
+    for attempt in range(repair + 1):
+        prompt = _compose_prompt(current_request, retrieval)
+        last = provider.complete(
+            prompt, model=model, temperature=temperature, max_tokens=max_tokens
+        )
+        script = _extract_script(last.text)
+        verdict = evaluate(script, dry_run=dry_run, gmat_root=gmat_root)
+        attempts.append(
+            DraftAttempt(
+                script=script,
+                lint=verdict.lint,
+                dry_run=verdict.dry_run,
+                passed=verdict.passed,
+                feedback=verdict.feedback,
+                feedback_tier=verdict.feedback_tier,
+                usage=dict(last.usage),
+            )
+        )
+        if verdict.passed:
+            stop_reason = "clean"
+            break
+        script_id = draft_hash(script)
+        if attempt > 0 and script_id == history[-1]:
+            stop_reason = "no-progress"
+            break
+        if script_id in history:
+            stop_reason = "oscillation"
+            break
+        history.append(script_id)
+        if attempt == repair:
+            stop_reason = "budget"
+            break
+        current_request = build_repair_prompt(request, script, verdict.feedback)
+
+    assert last is not None  # range(repair + 1) runs at least once (repair >= 0)
+    final = attempts[-1]
     result = CopilotResult(
-        script=script,
-        lint=report,
+        script=final.script,
+        lint=final.lint,
         retrieval=retrieval,
-        provider=completion.provider,
-        model=completion.model,
-        usage=completion.usage,
+        provider=last.provider,
+        model=last.model,
+        usage=aggregate_usage(tuple(attempts)),
+        dry_run=final.dry_run,
+        provenance=RepairTrace(attempts=tuple(attempts), stop_reason=stop_reason),
     )
-    if strict and report.blocking(strict=True):
+    dry_failed = final.dry_run is not None and not final.dry_run.ok
+    if strict and (final.lint.blocking(strict=True) or dry_failed):
         raise DraftRejected(result)
     return result
