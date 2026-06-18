@@ -69,12 +69,20 @@ def test_extract_empty_and_blank_return_empty() -> None:
     assert extract_feedback_line("   \n  \n\t\n") == ""
 
 
-def test_strip_paths_collapses_known_artefacts_to_basename() -> None:
+def test_strip_paths_collapses_any_absolute_path_to_basename() -> None:
     assert strip_paths("see /a/b/c/foo.log for details") == "see foo.log for details"
-    assert strip_paths("/x/y z/bar.script") == "bar.script"
     assert strip_paths("no path here") == "no path here"
-    # Only .script/.txt/.log are collapsed; an arbitrary extension is left alone.
-    assert strip_paths("/run/out.report") == "/run/out.report"
+    # Extension-agnostic (decision D12 / spike V5): run-tier artefacts the old .script/.txt/.log
+    # allow-list missed are collapsed too, so a random temp path can't leak through them.
+    assert strip_paths("dump /tmp/gmat-run-q9/DifferentialCorrectorDC.data unreadable") == (
+        "dump DifferentialCorrectorDC.data unreadable"
+    )
+    assert strip_paths("/run/ephem/EphemerisFile1.oem") == "EphemerisFile1.oem"
+    # Per-segment (no spaces): two paths on one line collapse independently, without the greedy
+    # match eating the message text between them.
+    assert strip_paths("both /opt/g/a.script and /var/log/run.log here") == (
+        "both a.script and run.log here"
+    )
 
 
 # --------------------------------------------------------------------------- verdict parsing
@@ -99,7 +107,14 @@ def test_verdict_scans_from_the_tail_past_chatter() -> None:
 
 @pytest.mark.parametrize(
     "stdout",
-    ["", "not json at all", '{"tier":"load"}', '{"a":1}\ntrailing garbage', "[1, 2, 3]"],
+    [
+        "",
+        "not json at all",
+        '{"tier":"load"}',
+        '{"a":1}\ntrailing garbage',
+        "[1, 2, 3]",
+        "{not valid json",  # starts with { but fails to parse -> the JSONDecodeError skip
+    ],
 )
 def test_verdict_rejects_unparseable_or_incomplete(stdout: str) -> None:
     assert _verdict_from_stdout(stdout) is None
@@ -248,3 +263,18 @@ def test_dry_run_degrades_on_crash_and_sanitises_paths(monkeypatch: pytest.Monke
     assert "no verdict" in report.one_line
     assert "draft.script" in report.raw_log
     assert "/tmp" not in report.raw_log  # the local path was sanitised away
+
+
+@pytest.mark.usefixtures("_bypass_guard")
+def test_dry_run_crash_falls_back_to_stdout_when_stderr_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # No JSON verdict and an empty stderr: the raw_log is distilled from stdout instead.
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return _completed(stdout="garbage at /tmp/y/draft.script with no verdict", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    report = dry_run("x")
+    assert report.tier == "crash"
+    assert "draft.script" in report.raw_log
+    assert "/tmp" not in report.raw_log
