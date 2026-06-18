@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from gmat_copilot import DryRunReport, Outcome, Provenance
+from gmat_copilot import DraftRejected, DryRunReport, Outcome, Provenance
 from gmat_copilot.cli import _lint_summary, main
 from gmat_copilot.eval.runner import EvalReport, PromptOutcome
 from gmat_copilot.eval.scorer import StructuralResult
@@ -203,6 +203,15 @@ def test_eval_recorded_replays_bundle(
     out = capsys.readouterr().out
     assert "pass-rate: 80%" in out  # the frozen 51-prompt aggregate (41/51)
     assert "[easy" in out  # the per-prompt line shows the difficulty tier
+
+
+def test_eval_recorded_errors_cleanly_for_an_unrecorded_model(
+    eval_bundle: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A recorded bundle keyed for a different model has no fixture for these prompts: exit cleanly
+    # (2) with a message, rather than letting the ProviderError escape as a traceback.
+    assert main(["eval", "--recorded", str(eval_bundle), "-m", "no-such-model"]) == 2
+    assert "recorded" in capsys.readouterr().err
 
 
 def test_eval_with_no_mode_prints_a_hint(capsys: pytest.CaptureFixture[str]) -> None:
@@ -453,6 +462,102 @@ def test_dry_run_failure_is_rejected_in_strict_mode(
 def test_negative_repair_budget_errors(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["a LEO", "-m", "github:openai/gpt-4.1-mini", "--repair", "-1"]) == 2
     assert "--repair" in capsys.readouterr().err
+
+
+def test_validate_dry_run_skip_on_unclean_script_is_announced(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    hallucinated_field_script: str,
+) -> None:
+    # --dry-run on a warning-bearing script (permissive, so it is not rejected): the dynamic tier is
+    # skipped (D12 runs it only on a lint-clean script) and the skip is announced, not silent. The
+    # [gmat] guard passes (extra present), but dry_run must never be called.
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: object())
+
+    def _boom(*args: object, **kwargs: object) -> DryRunReport:
+        raise AssertionError("dry_run must not run on an unclean script")
+
+    monkeypatch.setattr("gmat_copilot.cli.dry_run", _boom)
+    script = tmp_path / "warn.script"
+    script.write_text(hallucinated_field_script, encoding="utf-8")
+    assert main(["validate", str(script), "--dry-run", "--permissive"]) == 0
+    assert "dry-run: skipped (lint not clean)" in capsys.readouterr().err
+
+
+def test_generate_dry_run_skip_on_unclean_draft_is_announced(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    hallucinated_field_script: str,
+) -> None:
+    # Permissive generate with --dry-run on a warning-bearing draft: the draft is written and the
+    # summary reports the dry-run was skipped (lint not clean), since the tier never ran.
+    request = "a 500 km circular LEO"
+    model = "openai/gpt-4.1-mini"
+    _install_recorded(monkeypatch, request, model, f"```script\n{hallucinated_field_script}```")
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: object())
+    out = tmp_path / "mission.script"
+    code = main(
+        [request, "-m", f"github:{model}", "-o", str(out), "--dry-run", "--permissive"]
+    )
+    assert code == 0
+    assert out.exists()
+    assert "dry-run: skipped (lint not clean)" in capsys.readouterr().err
+
+
+def test_rejection_reports_repair_retries_spent(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A strict draft still failing after the repair budget: the rejection names how many retries it
+    # spent (attempts - 1) and writes nothing.
+    lint = LintReport(
+        diagnostics=(
+            LintDiagnostic(
+                rule="parse-error", severity=Severity.ERROR, message="boom", line=1, column=1
+            ),
+        )
+    )
+    attempts = tuple(
+        DraftAttempt(
+            script="bad",
+            lint=lint,
+            dry_run=None,
+            passed=False,
+            feedback=("error [parse-error] line 1: boom",),
+            feedback_tier="lint",
+            usage={"total_tokens": 1},
+        )
+        for _ in range(3)
+    )
+    result = CopilotResult(
+        script="bad",
+        lint=lint,
+        retrieval=RetrievalTrace(),
+        provider="github",
+        model="m",
+        usage={"total_tokens": 3},
+        dry_run=None,
+        provenance=Provenance(
+            request="a LEO",
+            provider="github",
+            model="m",
+            retrieval=RetrievalTrace(),
+            repair=RepairTrace(attempts=attempts, stop_reason="budget"),
+            outcome=Outcome(winner=2, passed=False, strict=True, usage={"total_tokens": 3}),
+        ),
+    )
+
+    def _reject(*args: object, **kwargs: object) -> CopilotResult:
+        raise DraftRejected(result)
+
+    monkeypatch.setattr("gmat_copilot.cli.draft", _reject)
+    out = tmp_path / "mission.script"
+    assert main(["a LEO", "-m", "github:openai/gpt-4.1-mini", "-o", str(out), "--repair", "5"]) == 1
+    assert "after 2 repair retries" in capsys.readouterr().err
+    assert not out.exists()
 
 
 def _result_with_attempts(script: str, n: int) -> CopilotResult:
