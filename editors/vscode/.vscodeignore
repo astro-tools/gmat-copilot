@@ -1,0 +1,13 @@
+# Everything is excluded except the bundled extension. Source, tests, and tooling stay out
+# of the .vsix; only dist/extension.js (and package.json / README / LICENSE) ship.
+.vscode-test/
+.vscode-test.mjs
+out/**
+src/**
+node_modules/**
+esbuild.js
+eslint.config.mjs
+tsconfig.json
+**/*.map
+**/*.ts
+.gitignore
