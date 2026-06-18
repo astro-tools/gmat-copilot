@@ -6,6 +6,31 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-06-18
+
+Closes the loop from a natural-language intent to a script validated against a real GMAT.
+Generation and the static lint gate stay GMAT-free; the new dynamic validation, the repair
+loop, and provenance are additive — the dry-run behind an optional extra.
+
+### Added
+
+- **Dynamic GMAT dry-run tier** — behind the optional `[gmat]` extra, a lint-clean draft is
+  loaded in a real GMAT (and run when a `Target`/`Optimize` solver is present) to catch the
+  runtime errors a static parse cannot. Strictly additive: the strict/permissive lint contract
+  is unchanged and the base install stays GMAT-free (#58).
+- **Bounded repair loop** — `draft()` can feed a failing draft's lint (and, with the dry-run,
+  runtime) diagnostics back to the model and regenerate, lint-first. Opt-in; it stops at the
+  first runnable draft, on budget exhaustion, or when a regenerated draft stops changing (#59).
+- **Provenance** — every result carries a versioned record of how it was produced (the request,
+  the model, the retrieval trace, the per-attempt draft history, and the outcome), always
+  populated in memory and optionally serialised to a credential-free `.copilot.json` sidecar
+  next to a saved script (#60).
+- **CLI `--dry-run` / `--repair N` / `--provenance`** — drive the dynamic tier, the repair loop,
+  and the sidecar from the command line; the summary line reports the lint, dry-run, and retry
+  outcome (#61).
+- **Eval close-the-loop tier** — the evaluation suite gains a dry-run-agreement tier and measures
+  the repair loop's lift, with a `workflow_dispatch` input to select the live suite in CI (#62, #65).
+
 ## [0.1.0] — 2026-06-17
 
 Initial public release. gmat-copilot turns a natural-language request into a GMAT mission
@@ -46,4 +71,5 @@ through a model you choose. Generation and validation need no GMAT install.
   extras; `CITATION.cff` metadata; and a release workflow that builds, publishes to PyPI via trusted
   publishing, and creates the GitHub release on `v*` tags (#23).
 
+[0.2.0]: https://github.com/astro-tools/gmat-copilot/releases/tag/v0.2.0
 [0.1.0]: https://github.com/astro-tools/gmat-copilot/releases/tag/v0.1.0
