@@ -186,3 +186,105 @@ the gold itself is the highest-fidelity choice for a one-time recorded reference
 route that fits the free-tier daily cap in a single window. Honesty is preserved: the completions are
 the real free-tier tool output (what a user gets); the frozen verdicts are labeled gold, not the cheap
 model. (D6 / D7 / the daily-cap measurement)
+
+## D12 — gmat-run dry-run integration contract
+
+**Context.** D5 fixed the v0.1 validator as the gmat-script lint gate (static, GMAT-free, instant) and
+deferred a gmat-run dry-run to v0.2 as the dynamic tier behind the `[gmat]` extra. V5 characterised
+that tier on real model output and the V2 defect corpus against a real GMAT install.
+
+**Decision.** The dry-run is a **tiered gmat-run call**, run **only on a lint-clean script** — D5's
+gate is the cheap inner loop, so the dry-run never sees a script lint already rejects.
+
+- **Tiers.** `Mission.load` is the **config tier** — it drives GMAT's own loader and catches what a
+  tree-sitter parse cannot: bad numerics, malformed epochs, missing data files, and the
+  undeclared-reference case D5's linter is too conservative to flag. `mission.run` +
+  `Results.converged` is the **execution tier**, entered **only when a solver is present** (a `Target`
+  / `Optimize`), because "ran" is not "solved" — a script can load and run yet leave a solver
+  `converged == False`. "Passes the dry-run" therefore means **loads, runs, and (if a solver is
+  present) converged**.
+- **Subprocess isolation.** gmatpy holds one process-global Moderator and cannot re-bootstrap in a
+  single interpreter, so **each dry-run runs in its own fresh subprocess**; a crash or timeout degrades
+  to a failure verdict rather than taking down the caller. A wall-clock timeout (default 300 s) bounds
+  a runaway solver.
+- **Error extraction.** GMAT's raw text is distilled to **one actionable, path-free line**, and the
+  path differs by tier. The execution tier reads `GmatRunError.log` (and `Results.converged` names the
+  solver that failed); the config tier must **redirect the GMAT log with `gmat.UseLogFile()` before
+  loading and read it back**, because `GmatLoadError` is thin ("could not parse '<path>'; check the
+  GMAT log") and carries no log of its own. A small extractor keeps the `**** ERROR ****` /
+  `Interpreter Exception:` message and strips the sequence/path prefixes and the trailing `in line:`
+  noise.
+- **Reconciliation with lint (extends D5).** Dry-run findings do **not** merge into the `LintReport`
+  (D10): lint diagnostics are precise (rule / severity / line / column) and dry-run findings are
+  coarser, so they land in a **separate `dry_run` result tier** (`{tier, ok, converged, one_line,
+  raw_log}`). The strict/permissive contract is unchanged — strict still rejects on lint ERROR *and*
+  WARNING (D5); the dry-run is a strictly additive backstop that runs after the lint gate passes.
+
+**Rationale.** Measured on a real GMAT install: the config tier catches every dry-run-only defect
+except non-convergence (which alone needs the execution tier), confirming the tiered policy. Per
+dry-run is a ~0.9 s cold subprocess (GMAT bootstrap ~0.17 s + load ~0.16 s + run ~0.04–0.16 s on small
+missions) — cheap enough for a repair loop, with the execution tier behind a timeout because a real
+solver is unbounded. The load-log redirect is a workaround for a thin load exception; exposing the load
+log on the load error is a carry-forward upstream ask, the dynamic-tier analogue of D5's
+undeclared-reference filing. (V5 / extends D5 / D10)
+
+## D13 — repair loop
+
+**Context.** With a dynamic validator (D12) behind the lint gate (D5), a failed draft now carries
+actionable feedback. V5 measured whether feeding that feedback back converges, and at what budget.
+
+**Decision.** v0.2 wraps generation in a **bounded repair loop**: generate → lint → (if lint-clean)
+dry-run; on any failure, **regenerate** with a repair prompt and re-validate.
+
+- **Repair prompt.** The original request + the failing draft + the **failing tier's** diagnostics
+  (lint blocking-lines when lint failed, else the dry-run one-line). Feedback is **lint-first**: lint
+  is precise and free, so a lint failure is fixed before the costly dry-run is attempted; the dry-run
+  one-line is the backstop for the lint-clean-but-unrunnable drafts the loop exists for.
+- **Default retry budget N = 2.** One repair does the work; a second covers prompt-distribution
+  variance; beyond that, no-progress and persistent failure dominate, so a larger budget only spends
+  tokens.
+- **Stop conditions.** The loop stops on the **first runnable draft**, on **budget exhaustion**, on
+  **no-progress** (a regenerated draft identical to the previous one, by content hash), or on
+  **oscillation** (a draft equal to one seen earlier in the loop).
+- **Strict/permissive (extends D5).** The loop runs the same in both modes; only the *terminal*
+  handling differs — strict raises on a final draft that still has blocking diagnostics, permissive
+  returns the best final draft with every diagnostic (lint and dry-run) attached.
+
+**Rationale.** Measured over real model output: a strong grounded model needed no repair (it emitted a
+runnable first draft on every prompt of an easy→hard sample), while a weaker model on hard prompts rose
+from one-of-six to four-of-six runnable after a **single** repair and then plateaued — every initial
+miss being a lint-clean script the dynamic tier (D12) caught, demonstrating the loop's value end to
+end. The plateau (zero for the strong model, one for the weak) sets the small default budget; an
+observed no-progress re-draft is why an identical regeneration is a stop condition, not a wasted
+attempt. (V5 / extends D5)
+
+## D14 — provenance schema
+
+**Context.** D10 reserved a `provenance` field on `CopilotResult` so the v0.2 trace could be added
+without a schema break. With retrieval (D2), generation, the lint gate (D5), the dynamic tier (D12),
+and the repair loop (D13) all in place, that trace now has a definite shape worth fixing.
+
+**Decision.** `CopilotResult.provenance` carries a **versioned** record of how a draft was produced,
+and an optional **`.copilot.json` sidecar** (e.g. `mission.script.copilot.json`) serialises it next to
+a saved script. The schema:
+
+- `schema_version` — an integer the writer stamps and a reader checks, so later additions are additive,
+  not breaking.
+- `request` — the natural-language intent, plus the resolved `provider` / `model`.
+- `retrieval` — the corpus chunks used (source + score): the `RetrievalTrace` (D10).
+- `drafts` — the **per-attempt history**, one entry per loop iteration (D13): the draft text, its
+  `LintReport`, its `dry_run` tier result (D12) when reached, and the feedback fed into the next
+  attempt.
+- `outcome` — which draft won, the final pass/fail under the active strict/permissive mode, and
+  aggregate `usage` (token totals across attempts).
+
+Provenance is **always populated in memory** — it is the trace the result already holds — while the
+sidecar is **written only on request** by the saving surface, never silently. It records the real run
+only; it is **not** part of the recorded CI path (D7), which replays frozen fixtures rather than live
+traces.
+
+**Rationale.** One stable, versioned record makes a generation auditable — what was retrieved, what
+each attempt produced, why the loop stopped — which is the v0.2 payoff of closing the loop and the
+substrate the eval and leaderboard read. Reserving the shape against D10's placeholder now means the
+field can be filled without a contract break, and keeping it out of the recorded fixtures preserves
+D7's determinism. (charter / D10 / extends D7)
