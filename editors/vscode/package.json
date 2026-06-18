@@ -1,0 +1,136 @@
+{
+  "name": "gmat-copilot",
+  "displayName": "GMAT Copilot",
+  "description": "Draft GMAT mission scripts from natural language, review the diff, and apply to the active file — with lint and dry-run diagnostics inline.",
+  "version": "0.3.0",
+  "publisher": "astro-tools",
+  "license": "MIT",
+  "homepage": "https://astro-tools.github.io/gmat-copilot/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/astro-tools/gmat-copilot.git",
+    "directory": "editors/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/astro-tools/gmat-copilot/issues"
+  },
+  "qna": "https://github.com/astro-tools/gmat-copilot/issues",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "gmat",
+    "astrodynamics",
+    "mission-analysis",
+    "llm",
+    "code-generation"
+  ],
+  "galleryBanner": {
+    "color": "#311B92",
+    "theme": "dark"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:gmat"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "gmatCopilot.draft",
+        "title": "Draft a Mission from a Description…",
+        "category": "GMAT Copilot"
+      },
+      {
+        "command": "gmatCopilot.draftFromSelection",
+        "title": "Draft a Mission from the Selection",
+        "category": "GMAT Copilot"
+      },
+      {
+        "command": "gmatCopilot.revalidate",
+        "title": "Re-validate the Active Script",
+        "category": "GMAT Copilot"
+      },
+      {
+        "command": "gmatCopilot.selectModel",
+        "title": "Select the Provider and Model…",
+        "category": "GMAT Copilot"
+      }
+    ],
+    "configuration": {
+      "title": "GMAT Copilot",
+      "properties": {
+        "gmatCopilot.model": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The `provider:model` to generate with (e.g. `anthropic:claude-sonnet-4-6`, `github:openai/gpt-4.1-mini`, `ollama:llama3`). There is **no default** — pick one explicitly with **GMAT Copilot: Select the Provider and Model…**. Credentials are read from the worker's environment, never stored here."
+        },
+        "gmatCopilot.strict": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Reject a draft that does not lint clean (any error or warning). Turn off for permissive mode: the best-effort draft is offered with its diagnostics attached."
+        },
+        "gmatCopilot.repair": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "markdownDescription": "On a failing draft, feed the diagnostics back and regenerate up to this many times. `0` is a single pass."
+        },
+        "gmatCopilot.dryRun": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "After linting, load/run a draft in GMAT to catch runtime errors. Needs the worker's Python environment to have the `[gmat]` extra and a discoverable GMAT install."
+        },
+        "gmatCopilot.server.pythonPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to a Python interpreter that has `gmat-copilot` installed. When set, the worker is launched as `<pythonPath> -m gmat_copilot.worker`, taking precedence over `#gmatCopilot.server.path#`. Point this at the virtual environment that holds your provider extras."
+        },
+        "gmatCopilot.server.path": {
+          "type": "string",
+          "default": "gmat-copilot-worker",
+          "markdownDescription": "Command used to launch the engine worker. Defaults to the `gmat-copilot-worker` console script provided by `pip install gmat-copilot`. Set an absolute path if it is not on your `PATH`. Ignored when `#gmatCopilot.server.pythonPath#` is set."
+        },
+        "gmatCopilot.server.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra command-line arguments passed to the worker on launch."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "node esbuild.js",
+    "package": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "check-types": "tsc --noEmit",
+    "compile-tests": "tsc -p . --outDir out",
+    "lint": "eslint src",
+    "pretest": "npm run compile-tests && npm run compile && npm run check-types && npm run lint",
+    "test": "vscode-test"
+  },
+  "dependencies": {
+    "vscode-jsonrpc": "^8.2.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "@types/mocha": "^10.0.7",
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.23.0",
+    "eslint": "^9.9.0",
+    "ovsx": "^0.9.5",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}

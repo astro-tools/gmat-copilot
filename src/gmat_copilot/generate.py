@@ -17,6 +17,7 @@ its diagnostics attached.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 
 from .provenance import Outcome, Provenance
 from .providers import Completion, Provider, ProviderError, select
@@ -24,7 +25,18 @@ from .rag import Retriever, assemble_context
 from .repair import DryRunFn, aggregate_usage, build_repair_prompt, draft_hash, evaluate
 from .result import CopilotResult, DraftAttempt, RepairTrace, RetrievalTrace
 
-__all__ = ["DraftRejected", "draft"]
+__all__ = ["DraftCancelled", "DraftRejected", "draft"]
+
+
+class DraftCancelled(RuntimeError):
+    """Generation was cancelled at a repair-attempt boundary via the *cancel* callback.
+
+    Raised by :func:`draft` when the caller's ``cancel`` predicate returns true before an attempt
+    begins — the editor surface's cancellable-progress channel (decision D15) routes a user cancel
+    through this. The check is at attempt boundaries: an in-flight provider call or dry-run
+    subprocess runs to its own completion / timeout, so a single pass (``repair=0``) has no boundary
+    to cancel at and this is raised only once a repair retry would otherwise start.
+    """
 
 
 class DraftRejected(RuntimeError):
@@ -174,6 +186,7 @@ def draft(
     dry_run: bool = False,
     gmat_root: str | None = None,
     dry_run_fn: DryRunFn | None = None,
+    cancel: Callable[[], bool] | None = None,
 ) -> CopilotResult:
     """Generate a GMAT mission ``.script`` from a natural-language *request*.
 
@@ -206,6 +219,11 @@ def draft(
     :param gmat_root: GMAT install root forwarded to the dry-run (else ``GMAT_ROOT`` / discovery).
     :param dry_run_fn: a dynamic-tier dry-run to use in place of the real gmat-run subprocess (the
         eval's deterministic replay seam, decision D7); ``None`` uses the real dry-run.
+    :param cancel: an optional predicate polled at each repair-attempt boundary (decision D15); when
+        it returns true before an attempt begins, generation stops with :class:`DraftCancelled`. An
+        in-flight provider call or dry-run runs to completion, so a single pass (``repair=0``) has
+        no boundary to cancel at.
+    :raises DraftCancelled: when *cancel* returns true before an attempt begins.
     :raises DraftRejected: in strict mode, when the final draft still has blocking diagnostics.
     :raises ProviderError: when no model is resolved — either *model* is ``None`` with no provider
         to apply it to, or :func:`~gmat_copilot.providers.select` cannot resolve the selector.
@@ -228,6 +246,10 @@ def draft(
     last: Completion | None = None
 
     for attempt in range(repair + 1):
+        if cancel is not None and cancel():
+            raise DraftCancelled(
+                f"generation cancelled before attempt {attempt + 1} of {repair + 1}"
+            )
         prompt = _compose_prompt(current_request, retrieval)
         last = provider.complete(
             prompt, model=model, temperature=temperature, max_tokens=max_tokens

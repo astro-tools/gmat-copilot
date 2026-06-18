@@ -8,7 +8,7 @@ returns; the package is GMAT-free for generation and validation.
 from __future__ import annotations
 
 from .dryrun import GmatExtraNotInstalled, dry_run, require_gmat_extra
-from .generate import DraftRejected, draft
+from .generate import DraftCancelled, DraftRejected, draft
 from .provenance import Outcome, Provenance, read_sidecar, write_sidecar
 from .result import (
     CopilotResult,
@@ -25,6 +25,7 @@ from .result import (
 __all__ = [
     "CopilotResult",
     "DraftAttempt",
+    "DraftCancelled",
     "DraftRejected",
     "DryRunReport",
     "GmatExtraNotInstalled",
