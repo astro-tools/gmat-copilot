@@ -151,7 +151,9 @@ jobs:
     name: dry-run tier (setup-gmat, [gmat] extra)
     # The dynamic validation tier needs a real GMAT install, supplied by setup-gmat. Kept off the
     # base matrix (which is GMAT-free) and gated here; the dry-run worker is omitted from coverage,
-    # so this job runs the gmat-marked tests without the coverage gate.
+    # so this job runs the gmat-marked tests without the coverage gate. These tests use no model
+    # (the close-the-loop verification re-checks the recorded lift verdicts against a real GMAT), so
+    # the job stays inference-free — the per-PR rate limit is never touched.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -169,3 +171,38 @@ jobs:
           cache: true
       - run: uv sync --all-groups --extra gmat
       - run: uv run pytest -m gmat
+
+  gated-lift-eval:
+    name: gated close-the-loop eval (live, GitHub Models + setup-gmat)
+    # The live close-the-loop eval drives a real model AND a real GMAT dry-run, so it runs ONLY on
+    # manual dispatch (decision D7): per-PR CI replays the recorded lift (the eval-smoke job) and
+    # re-checks the recorded verdicts against a real GMAT (the dry-run job), neither of which calls a
+    # model. This job is the on-demand live run / fixture-refresh path; it needs a personal MODELS_PAT
+    # and is paced to respect the free-tier daily budget.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      models: read
+      contents: read
+    env:
+      UV_PYTHON: '3.12'
+      MODELS_PAT: ${{ secrets.MODELS_PAT }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - uses: astro-tools/setup-gmat@v0
+        with:
+          version: R2026a
+          cache: true
+      - run: uv sync --all-groups --extra gmat
+      - run: >
+          uv run gmat-copilot eval --lift
+          --prompts tests/data/eval_lift/prompts.json
+          -m github:openai/gpt-4.1-mini
+          --judge-model openai/gpt-4.1-mini
+          --budget 2
+          --pace 4.5

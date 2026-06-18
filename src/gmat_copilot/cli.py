@@ -18,6 +18,7 @@ from pathlib import Path
 from . import __version__
 from .dryrun import GmatExtraNotInstalled, dry_run, require_gmat_extra
 from .eval.judge import JUDGE_MODEL
+from .eval.lift import DEFAULT_BUDGET, LiftReport, run_live_lift, run_recorded_lift
 from .eval.prompts import load_prompts
 from .eval.runner import EvalReport, record_bundle, run_live, run_recorded
 from .generate import DraftRejected, draft
@@ -226,11 +227,56 @@ def _print_eval_report(report: EvalReport) -> None:
     print(f"pass-rate: {report.pass_rate:.0%}")
 
 
+def _print_lift_report(report: LiftReport) -> None:
+    """Print per-prompt base/repaired outcomes, then the per-tier dry-run-agreement and lift."""
+    for row in report.rows:
+        base = "runnable" if row.base.runnable else "FAIL"
+        repaired = "runnable" if row.repaired.runnable else "FAIL"
+        print(
+            f"{row.id:24} [{row.difficulty:6}] repair=0:{base:9} "
+            f"repair={report.budget}:{repaired:9} (retries={row.retries}, {row.stop_reason})"
+        )
+    print("dry-run agreement (of statically-accepted drafts, the fraction that also run):")
+    for tier, agree in sorted(report.dry_run_agreement_by_tier.items()):
+        print(f"  {tier:6}: {'n/a' if agree is None else f'{agree:.0%}'}")
+    print(f"repair-loop lift (repair={report.budget} - repair=0):")
+    base_by, repaired_by = report.base_runnable_by_tier, report.repaired_runnable_by_tier
+    for tier, lift in sorted(report.lift_by_tier.items()):
+        print(f"  {tier:6}: {base_by[tier]:.0%} -> {repaired_by[tier]:.0%}  ({lift:+.0%})")
+    print(
+        f"overall: {report.base_runnable:.0%} -> {report.repaired_runnable:.0%}  "
+        f"({report.lift:+.0%})"
+    )
+
+
 def _cmd_eval(args: argparse.Namespace) -> int:
     if args.recorded:
         _print_eval_report(run_recorded(args.recorded, model=args.model))
         return 0
+    if args.lift_recorded:
+        _print_lift_report(run_recorded_lift(args.lift_recorded, budget=args.budget))
+        return 0
     try:
+        if args.lift:
+            if not args.prompts:
+                print("gmat-copilot eval --lift: pass --prompts <path>", file=sys.stderr)
+                return 2
+            code = (
+                _ensure_gmat_extra()
+            )  # the live lift drives a real gmat-run dry-run (decision D12)
+            if code is not None:
+                return code
+            _print_lift_report(
+                run_live_lift(
+                    load_prompts(args.prompts),
+                    model=args.model,
+                    judge_model=args.judge_model,
+                    n=args.n,
+                    budget=args.budget,
+                    pace=args.pace,
+                )
+            )
+            return 0
         if args.record:
             prompts_path = args.prompts or Path(args.record) / "prompts.json"
             report = record_bundle(
@@ -261,7 +307,9 @@ def _cmd_eval(args: argparse.Namespace) -> int:
         return 2
     print(
         "gmat-copilot eval: pass --recorded <bundle> to replay deterministically, --live "
-        "--prompts <path> to run live, or --record <dir> to refresh a bundle's fixtures.",
+        "--prompts <path> to run live, or --record <dir> to refresh a bundle's fixtures. For the "
+        "close-the-loop eval (dry-run agreement + repair lift), pass --lift-recorded <bundle> or "
+        "--lift --prompts <path>.",
         file=sys.stderr,
     )
     return 0
@@ -368,6 +416,16 @@ def _build_parser() -> argparse.ArgumentParser:
     mode.add_argument(
         "--record", metavar="DIR", help="run live and freeze the bundle's fixtures into DIR"
     )
+    mode.add_argument(
+        "--lift-recorded",
+        metavar="BUNDLE",
+        help="replay a recorded close-the-loop bundle: dry-run agreement + repair lift (no model)",
+    )
+    mode.add_argument(
+        "--lift",
+        action="store_true",
+        help="run the close-the-loop eval live (needs a credential and the [gmat] extra)",
+    )
     eval_parser.add_argument(
         "--prompts",
         metavar="PATH",
@@ -387,6 +445,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     eval_parser.add_argument(
         "--pace", type=float, default=0.0, help="seconds between model calls (free-tier pacing)"
+    )
+    eval_parser.add_argument(
+        "--budget",
+        type=int,
+        default=DEFAULT_BUDGET,
+        help=f"repair retry budget for --lift / --lift-recorded (default {DEFAULT_BUDGET}: the D13 "
+        "budget)",
     )
     return parser
 

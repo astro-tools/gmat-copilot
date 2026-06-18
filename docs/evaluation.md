@@ -60,3 +60,42 @@ gmat-copilot eval --record <bundle-dir> --prompts <prompts.json> --model anthrop
 `--n` sets the judge votes per prompt and `--pace` inserts a delay between calls to respect a
 free-tier per-minute budget. See [Reproduce the eval](examples/reproduce-the-eval.md) for a worked
 run against the bundle that ships in the repository.
+
+## Close-the-loop: dry-run agreement and repair lift
+
+The two-layer eval above scores a single draft. Closing the loop adds the
+[gmat-run dry-run](validation.md) and the repair loop, and two measurements quantify what they buy:
+
+- **Dry-run agreement** — of the drafts the static eval accepts (structural *and* judge), the
+  fraction that also *run* when GMAT loads and (for a solver) executes them. The shortfall is the
+  static-vs-dynamic gap: lint-clean, intent-correct scripts GMAT's loader or solver still rejects.
+- **Repair-loop lift** — the close-the-loop pass-rate (structural *and* judge *and* dry-run) the
+  bounded repair loop recovers over a single pass: the rate at the repair budget minus the rate at
+  `repair = 0`. Each prompt is scored at both budgets from one generation's repair trace, so there is
+  no double run.
+
+The report aggregates both within each difficulty tier, alongside the base (`repair = 0`) and
+repaired pass-rates.
+
+### Reproducible without a model or a GMAT install
+
+A recorded close-the-loop bundle adds two files to the prompt set:
+
+- `trajectory.json` — `{prompt_id: [draft_script, ...]}`, the recorded repair sequence per prompt.
+- `verdicts.json` — `{draft_hash: {"dry_run": {...}, "judge": [verdict, ...]}}`, the dry-run verdict
+  measured against a real GMAT and the gold judge verdict for each draft.
+
+Replaying the bundle drives the **real** repair loop with a provider that serves the recorded
+trajectory and a dry-run that replays the recorded verdicts — no model call, no GMAT, fully
+deterministic. A live run drives a real model and a real GMAT dry-run on demand.
+
+```bash
+# Deterministic replay of a recorded close-the-loop bundle — no model, no GMAT, no network:
+gmat-copilot eval --lift-recorded <bundle-dir>
+
+# Live close-the-loop run (needs a provider, the [gmat] extra, and a discoverable GMAT install):
+gmat-copilot eval --lift --prompts <prompts.json> -m github:openai/gpt-4.1-mini --budget 2
+```
+
+`--budget` is the repair retry budget (default 2). As with the static eval, live inference runs only
+on demand; per-merge CI replays the recorded bundle.
