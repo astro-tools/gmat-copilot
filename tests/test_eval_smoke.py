@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from gmat_copilot.eval import run_recorded
+from gmat_copilot.eval import run_recorded, run_recorded_lift
 
 MODEL = "openai/gpt-4.1-mini"
 
@@ -44,3 +44,17 @@ def test_judge_layer_catches_intent_misses(eval_bundle: Path) -> None:
     judge_caught = {o.id for o in report.outcomes if o.structural.passed and not o.passed}
     assert judge_caught  # the judge layer is doing real work beyond the structural checks
     assert "lower_perigee" in judge_caught  # e.g. a wrong-direction (prograde) burn
+
+
+@pytest.mark.eval_smoke
+def test_recorded_lift_reproduces_the_frozen_close_the_loop_numbers(eval_lift_bundle: Path) -> None:
+    # Replays the recorded close-the-loop bundle through the real repair loop with no model and no
+    # GMAT (trajectory provider + recorded dry-run + gold judge verdicts), pinning the frozen
+    # dry-run-agreement and repair-lift so a regression in the loop, scorer, or bundle is caught.
+    report = run_recorded_lift(eval_lift_bundle)
+    assert report.lift_by_tier == {"easy": 0.0, "medium": 1.0, "hard": 0.5}
+    assert report.dry_run_agreement_by_tier == {"easy": 1.0, "medium": 0.0, "hard": 0.0}
+    # The headline: the loop converts statically-accepted-but-unrunnable drafts into runnable ones.
+    assert report.base_runnable == 0.25
+    assert report.repaired_runnable == 0.75
+    assert report.lift == 0.5

@@ -1,0 +1,80 @@
+{
+  "695794d2959756d38cb98b3dfa19cd5d7348b66ef603214758187b32e8aae492": {
+    "dry_run": {
+      "converged": {
+        "DC": false
+      },
+      "ok": false,
+      "one_line": "solver(s) DC did not converge",
+      "raw_log": "",
+      "tier": "run"
+    },
+    "judge": [
+      true
+    ]
+  },
+  "ab2a92d6752181a82df6ddbb5c6a0d9865de6b94797b5524065d5b47ab14a02d": {
+    "dry_run": {
+      "converged": null,
+      "ok": true,
+      "one_line": "",
+      "raw_log": "",
+      "tier": "load"
+    },
+    "judge": [
+      true
+    ]
+  },
+  "b52be85f88b2e95dc696be0dda79ec74b5c170bf61a29bf5c1b35d312f0b3953": {
+    "dry_run": {
+      "converged": null,
+      "ok": true,
+      "one_line": "",
+      "raw_log": "",
+      "tier": "load"
+    },
+    "judge": [
+      true
+    ]
+  },
+  "cd35b5bd5b932292f6787423024cfb21888dfc51a4bbeaebd1fe219767c4793a": {
+    "dry_run": {
+      "converged": null,
+      "ok": false,
+      "one_line": "The ODEModel named \"FM\", referenced by the Propagator \"Prop\" cannot be found",
+      "raw_log": "",
+      "tier": "load"
+    },
+    "judge": [
+      true
+    ]
+  },
+  "d5bbb6e9b637abf27693e9721e42424fc0276192035589c0cda5ea291fa7d6af": {
+    "dry_run": {
+      "converged": {
+        "DC": false
+      },
+      "ok": false,
+      "one_line": "solver(s) DC did not converge",
+      "raw_log": "",
+      "tier": "run"
+    },
+    "judge": [
+      true
+    ]
+  },
+  "e29c919abc1cdefadf237a0e9c8b8c5a821e78c27faf99097f7f71b19eaab6aa": {
+    "dry_run": {
+      "converged": {
+        "DC": true
+      },
+      "ok": true,
+      "one_line": "",
+      "raw_log": "",
+      "tier": "run"
+    },
+    "judge": [
+      true
+    ]
+  }
+}

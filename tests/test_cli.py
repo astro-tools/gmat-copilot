@@ -207,7 +207,70 @@ def test_eval_recorded_replays_bundle(
 
 def test_eval_with_no_mode_prints_a_hint(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["eval"]) == 0
-    assert "--recorded" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "--recorded" in err
+    assert "--lift-recorded" in err  # the close-the-loop modes are advertised too
+
+
+def test_eval_lift_recorded_replays_bundle(
+    eval_lift_bundle: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["eval", "--lift-recorded", str(eval_lift_bundle)]) == 0
+    out = capsys.readouterr().out
+    assert "dry-run agreement" in out and "repair-loop lift" in out
+    assert "overall: 25% -> 75%  (+50%)" in out  # the frozen close-the-loop numbers
+
+
+def test_eval_lift_recorded_budget_zero_shows_no_lift(
+    eval_lift_bundle: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["eval", "--lift-recorded", str(eval_lift_bundle), "--budget", "0"]) == 0
+    out = capsys.readouterr().out
+    assert "repair=0" in out
+    assert "overall: 25% -> 25%  (+0%)" in out  # at budget 0 there is no lift
+
+
+def test_eval_lift_without_prompts_errors(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["eval", "--lift"]) == 2
+    assert "--prompts" in capsys.readouterr().err
+
+
+def test_eval_lift_live_without_the_gmat_extra_errors(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The live lift drives a real gmat-run dry-run; without the [gmat] extra it exits 2 with a hint.
+    from gmat_copilot.dryrun import GmatExtraNotInstalled
+
+    def _absent() -> None:
+        raise GmatExtraNotInstalled("the gmat-run dry-run needs the optional [gmat] extra")
+
+    monkeypatch.setattr("gmat_copilot.cli.require_gmat_extra", _absent)
+    prompts = tmp_path / "prompts.json"
+    prompts.write_text(
+        '[{"id": "p", "request": "a LEO", "intent": "a LEO", "structural": {}}]',
+        encoding="utf-8",
+    )
+    assert main(["eval", "--lift", "--prompts", str(prompts)]) == 2
+    assert "[gmat] extra" in capsys.readouterr().err
+
+
+def test_eval_lift_live_prints_the_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The live close-the-loop path needs the [gmat] extra; stub both the guard and the runner so the
+    # CLI wiring is exercised without a GMAT install or a live model.
+    from gmat_copilot.eval import LiftReport
+
+    monkeypatch.setattr("gmat_copilot.cli.require_gmat_extra", lambda: None)
+    monkeypatch.setattr("gmat_copilot.cli.run_live_lift", lambda *a, **k: LiftReport())
+    prompts = tmp_path / "prompts.json"
+    prompts.write_text(
+        '[{"id": "p", "request": "a LEO", "intent": "a LEO", "structural": {}}]',
+        encoding="utf-8",
+    )
+    code = main(["eval", "--lift", "--prompts", str(prompts), "-m", "github:openai/gpt-4.1-mini"])
+    assert code == 0
+    assert "repair-loop lift" in capsys.readouterr().out
 
 
 def test_eval_live_without_prompts_errors(capsys: pytest.CaptureFixture[str]) -> None:

@@ -1,0 +1,80 @@
+[
+  {
+    "difficulty": "easy",
+    "id": "circular_leo",
+    "intent": "A single spacecraft on a near-circular low-Earth orbit (low eccentricity) at 28.5 deg inclination, propagated for roughly one orbit, with a ReportFile recording its radial distance from Earth.",
+    "request": "Create a spacecraft in a circular low-Earth orbit at 28.5 degrees inclination, propagate for one revolution, and report its distance from Earth.",
+    "structural": {
+      "required_commands": [
+        "Propagate",
+        "Report"
+      ],
+      "required_types": [
+        "Spacecraft",
+        "Propagator",
+        "ReportFile"
+      ]
+    }
+  },
+  {
+    "difficulty": "medium",
+    "id": "point_mass_propagation",
+    "intent": "A spacecraft using an Earth gravity (primary-body) force model, propagated for about one day, with a ReportFile recording the semi-major axis.",
+    "request": "Set up a spacecraft with an Earth point-mass gravity model, propagate for one day, and report the semi-major axis.",
+    "structural": {
+      "required_commands": [
+        "Propagate",
+        "Report"
+      ],
+      "required_types": [
+        "Spacecraft",
+        "Propagator",
+        "ReportFile"
+      ]
+    }
+  },
+  {
+    "difficulty": "hard",
+    "id": "raise_apogee_target",
+    "intent": "A targeted impulsive maneuver solved by a DifferentialCorrector \u2014 vary the burn to achieve a target apoapsis radius \u2014 then report the achieved radius.",
+    "request": "Use a differential corrector to find the maneuver that raises the orbit to a target apogee radius, then report the achieved radius.",
+    "structural": {
+      "required_commands": [
+        "Target",
+        "Vary",
+        "Achieve",
+        "Maneuver",
+        "Report"
+      ],
+      "required_types": [
+        "Spacecraft",
+        "ImpulsiveBurn",
+        "DifferentialCorrector",
+        "Propagator",
+        "ReportFile"
+      ]
+    }
+  },
+  {
+    "difficulty": "hard",
+    "id": "persistent_target",
+    "intent": "A targeted impulsive maneuver solved by a DifferentialCorrector \u2014 vary the burn to achieve a (far) target apoapsis radius \u2014 then report the achieved radius.",
+    "request": "Use a differential corrector to drive the orbit's apogee radius to a far target and report the achieved radius.",
+    "structural": {
+      "required_commands": [
+        "Target",
+        "Vary",
+        "Achieve",
+        "Maneuver",
+        "Report"
+      ],
+      "required_types": [
+        "Spacecraft",
+        "ImpulsiveBurn",
+        "DifferentialCorrector",
+        "Propagator",
+        "ReportFile"
+      ]
+    }
+  }
+]

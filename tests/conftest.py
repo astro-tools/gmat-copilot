@@ -98,6 +98,12 @@ def eval_bundle() -> Path:
 
 
 @pytest.fixture
+def eval_lift_bundle() -> Path:
+    """The recorded close-the-loop bundle: trajectories + measured dry-run / gold judge verdicts."""
+    return DATA / "eval_lift"
+
+
+@pytest.fixture
 def dryrun_data() -> Path:
     """Root of the lint-clean dry-run fixtures (load- and run-tier defects, a converging target)."""
     return DATA / "dryrun"
