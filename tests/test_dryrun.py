@@ -15,10 +15,10 @@ from gmat_copilot import DryRunReport, GmatExtraNotInstalled
 from gmat_copilot import dryrun as dryrun_mod
 from gmat_copilot.dryrun import (
     _report_from_verdict,
-    _require_gmat_extra,
     _verdict_from_stdout,
     dry_run,
     extract_feedback_line,
+    require_gmat_extra,
     strip_paths,
 )
 
@@ -130,12 +130,12 @@ def test_report_from_verdict_coerces_types() -> None:
 def test_require_gmat_extra_raises_when_absent(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
     with pytest.raises(GmatExtraNotInstalled, match=r"\[gmat\] extra"):
-        _require_gmat_extra()
+        require_gmat_extra()
 
 
 def test_require_gmat_extra_passes_when_present(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(importlib.util, "find_spec", lambda name: object())
-    _require_gmat_extra()  # does not raise
+    require_gmat_extra()  # does not raise
 
 
 def test_dry_run_raises_a_clear_error_without_the_extra(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -156,7 +156,7 @@ def _completed(
 @pytest.fixture
 def _bypass_guard(monkeypatch: pytest.MonkeyPatch) -> None:
     """Skip the [gmat]-extra check so the orchestration runs GMAT-free."""
-    monkeypatch.setattr(dryrun_mod, "_require_gmat_extra", lambda: None)
+    monkeypatch.setattr(dryrun_mod, "require_gmat_extra", lambda: None)
 
 
 @pytest.mark.usefixtures("_bypass_guard")

@@ -7,7 +7,7 @@ returns; the package is GMAT-free for generation and validation.
 
 from __future__ import annotations
 
-from .dryrun import GmatExtraNotInstalled, dry_run
+from .dryrun import GmatExtraNotInstalled, dry_run, require_gmat_extra
 from .generate import DraftRejected, draft
 from .provenance import Outcome, Provenance, read_sidecar, write_sidecar
 from .result import (
@@ -39,6 +39,7 @@ __all__ = [
     "draft",
     "dry_run",
     "read_sidecar",
+    "require_gmat_extra",
     "write_sidecar",
 ]
 __version__ = "0.1.0"
