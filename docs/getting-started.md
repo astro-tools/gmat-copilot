@@ -63,6 +63,28 @@ exits non-zero; `--permissive` writes the best-effort draft with its diagnostics
 `--model` the tool lists the providers it can reach. `gmat-copilot draft "<intent>"` is an alias of
 the bare form.
 
+### Close the loop
+
+Three optional flags surface the dynamic-validation capabilities:
+
+```bash
+gmat-copilot "a Hohmann transfer to GEO" -m anthropic:claude-... \
+    --dry-run --repair 2 --provenance
+```
+
+- `--dry-run` loads (and, if the script has a solver, runs) the draft in GMAT after it lints clean,
+  catching runtime errors a static parse cannot. It needs the `[gmat]` extra and a discoverable GMAT
+  install (`pip install "gmat-copilot[gmat]"`, plus `GMAT_ROOT` or a standard-location install); the
+  default no-extra path is unaffected, and asking for `--dry-run` without it fails with a clear
+  message rather than a traceback.
+- `--repair N` retries a failing draft up to `N` times, feeding the lint (and, with `--dry-run`,
+  runtime) diagnostics back to the model each round. The default of `0` is a single pass.
+- `--provenance` writes a `.copilot.json` sidecar next to the script — the request, the per-attempt
+  draft history, and the outcome — so a generated mission carries a record of how it was produced.
+
+The summary then reports the dry-run outcome and the retries spent. `validate` gains an optional
+`--dry-run` too, to dry-run an existing script.
+
 ## Next
 
 - [Draft a Hohmann transfer](examples/hohmann.md) — a fuller worked example.

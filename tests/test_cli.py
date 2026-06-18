@@ -2,17 +2,28 @@
 
 from __future__ import annotations
 
+import importlib.util
+import json
 from pathlib import Path
 
 import pytest
 
+from gmat_copilot import DryRunReport, Outcome, Provenance
 from gmat_copilot.cli import _lint_summary, main
 from gmat_copilot.eval.runner import EvalReport, PromptOutcome
 from gmat_copilot.eval.scorer import StructuralResult
 from gmat_copilot.generate import _compose_prompt, draft
 from gmat_copilot.providers import RecordedProvider, prompt_key
 from gmat_copilot.rag import Retriever
-from gmat_copilot.result import LintDiagnostic, LintReport, RetrievalTrace, Severity
+from gmat_copilot.result import (
+    CopilotResult,
+    DraftAttempt,
+    LintDiagnostic,
+    LintReport,
+    RepairTrace,
+    RetrievalTrace,
+    Severity,
+)
 
 
 class _OfflineRetriever(Retriever):
@@ -295,3 +306,205 @@ def test_lint_summary_counts_each_severity() -> None:
 
 def test_lint_summary_clean() -> None:
     assert _lint_summary(LintReport()) == "clean"
+
+
+# ------------------------------------------------------- dry-run / repair / provenance on the CLI
+
+
+def _ok_dry_run() -> DryRunReport:
+    return DryRunReport(tier="load", ok=True, converged=None, one_line="", raw_log="")
+
+
+def _failed_dry_run() -> DryRunReport:
+    return DryRunReport(
+        tier="load",
+        ok=False,
+        converged=None,
+        one_line='Gregorian date "01 Foo 2025 12:00:00.000" is not valid.',
+        raw_log="",
+    )
+
+
+def test_dry_run_without_gmat_extra_errors_cleanly(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # --dry-run with the [gmat] extra absent: an eager, actionable exit-2 error, not a traceback.
+    # The guard fires before any provider call, so this needs no credential and no recording.
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
+    assert main(["a 500 km LEO", "-m", "github:openai/gpt-4.1-mini", "--dry-run"]) == 2
+    assert "[gmat]" in capsys.readouterr().err
+
+
+def test_validate_dry_run_without_gmat_extra_errors_cleanly(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    valid_script: str,
+) -> None:
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
+    script = tmp_path / "ok.script"
+    script.write_text(valid_script, encoding="utf-8")
+    assert main(["validate", str(script), "--dry-run"]) == 2
+    assert "[gmat]" in capsys.readouterr().err
+
+
+def test_dry_run_summary_reports_ok(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    valid_script: str,
+) -> None:
+    # The [gmat] tier is mocked (the GMAT-free CI has no GMAT): a passing dry-run shows in the
+    # summary and the script is written.
+    request = "a 500 km circular LEO"
+    model = "openai/gpt-4.1-mini"
+    _install_recorded(monkeypatch, request, model, f"```script\n{valid_script}```")
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: object())
+    monkeypatch.setattr("gmat_copilot.repair._dry_run", lambda script, **kwargs: _ok_dry_run())
+    out = tmp_path / "mission.script"
+    assert main([request, "-m", f"github:{model}", "-o", str(out), "--dry-run"]) == 0
+    assert out.exists()
+    assert "dry-run: ok" in capsys.readouterr().err
+
+
+def test_dry_run_failure_is_rejected_in_strict_mode(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    valid_script: str,
+) -> None:
+    # A lint-clean script whose dry-run fails is rejected (strict), exits 1, and writes nothing.
+    request = "a 500 km circular LEO"
+    model = "openai/gpt-4.1-mini"
+    _install_recorded(monkeypatch, request, model, f"```script\n{valid_script}```")
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: object())
+    monkeypatch.setattr("gmat_copilot.repair._dry_run", lambda script, **kwargs: _failed_dry_run())
+    out = tmp_path / "mission.script"
+    assert main([request, "-m", f"github:{model}", "-o", str(out), "--dry-run"]) == 1
+    assert not out.exists()
+    err = capsys.readouterr().err
+    assert "rejected" in err
+    assert "dry-run failed at load" in err
+
+
+def test_negative_repair_budget_errors(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["a LEO", "-m", "github:openai/gpt-4.1-mini", "--repair", "-1"]) == 2
+    assert "--repair" in capsys.readouterr().err
+
+
+def _result_with_attempts(script: str, n: int) -> CopilotResult:
+    """A result whose provenance records *n* draft attempts (n-1 retries), for the summary test."""
+    lint = LintReport()
+    attempts = tuple(
+        DraftAttempt(
+            script=script,
+            lint=lint,
+            dry_run=None,
+            passed=(i == n - 1),
+            feedback=(),
+            feedback_tier=None,
+            usage={"total_tokens": 1},
+        )
+        for i in range(n)
+    )
+    provenance = Provenance(
+        request="a LEO",
+        provider="github",
+        model="m",
+        retrieval=RetrievalTrace(),
+        repair=RepairTrace(attempts=attempts, stop_reason="clean"),
+        outcome=Outcome(winner=n - 1, passed=True, strict=True, usage={"total_tokens": n}),
+    )
+    return CopilotResult(
+        script=script,
+        lint=lint,
+        retrieval=RetrievalTrace(),
+        provider="github",
+        model="m",
+        usage={"total_tokens": n},
+        dry_run=None,
+        provenance=provenance,
+    )
+
+
+def test_repair_summary_reports_retries(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    valid_script: str,
+) -> None:
+    # With --repair set, the summary reports the retries spent (attempts - 1).
+    result = _result_with_attempts(valid_script, n=3)
+    monkeypatch.setattr("gmat_copilot.cli.draft", lambda *args, **kwargs: result)
+    out = tmp_path / "mission.script"
+    assert main(["a LEO", "-m", "github:openai/gpt-4.1-mini", "-o", str(out), "--repair", "5"]) == 0
+    assert "retries: 2" in capsys.readouterr().err
+
+
+def test_provenance_flag_writes_sidecar(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    valid_script: str,
+) -> None:
+    request = "a 500 km circular LEO"
+    model = "openai/gpt-4.1-mini"
+    _install_recorded(monkeypatch, request, model, f"```script\n{valid_script}```")
+    out = tmp_path / "mission.script"
+    assert main([request, "-m", f"github:{model}", "-o", str(out), "--provenance"]) == 0
+    sidecar = out.with_name(out.name + ".copilot.json")
+    assert sidecar.exists()
+    data = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert data["schema_version"] == 1
+    assert data["request"] == request
+    assert sidecar.name in capsys.readouterr().err  # the summary names the sidecar it wrote
+
+
+def test_no_provenance_sidecar_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, valid_script: str
+) -> None:
+    request = "a 500 km circular LEO"
+    model = "openai/gpt-4.1-mini"
+    _install_recorded(monkeypatch, request, model, f"```script\n{valid_script}```")
+    out = tmp_path / "mission.script"
+    assert main([request, "-m", f"github:{model}", "-o", str(out)]) == 0
+    assert not out.with_name(out.name + ".copilot.json").exists()
+
+
+def test_provenance_to_stdout_errors(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, valid_script: str
+) -> None:
+    # --provenance has no file to sit beside when writing to stdout: a clean exit-2 error.
+    request = "a 500 km circular LEO"
+    model = "openai/gpt-4.1-mini"
+    _install_recorded(monkeypatch, request, model, f"```script\n{valid_script}```")
+    assert main([request, "-m", f"github:{model}", "-o", "-", "--provenance"]) == 2
+    assert "--provenance" in capsys.readouterr().err
+
+
+def test_validate_dry_run_ok(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    valid_script: str,
+) -> None:
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: object())
+    monkeypatch.setattr("gmat_copilot.cli.dry_run", lambda text, **kwargs: _ok_dry_run())
+    script = tmp_path / "ok.script"
+    script.write_text(valid_script, encoding="utf-8")
+    assert main(["validate", str(script), "--dry-run"]) == 0
+    assert "dry-run: ok" in capsys.readouterr().err
+
+
+def test_validate_dry_run_failure_rejects(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    valid_script: str,
+) -> None:
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: object())
+    monkeypatch.setattr("gmat_copilot.cli.dry_run", lambda text, **kwargs: _failed_dry_run())
+    script = tmp_path / "ok.script"
+    script.write_text(valid_script, encoding="utf-8")
+    assert main(["validate", str(script), "--dry-run"]) == 1
+    assert "dry-run: failed at load" in capsys.readouterr().err

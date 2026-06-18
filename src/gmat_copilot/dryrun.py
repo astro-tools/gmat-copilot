@@ -35,6 +35,7 @@ __all__ = [
     "GmatExtraNotInstalled",
     "dry_run",
     "extract_feedback_line",
+    "require_gmat_extra",
     "strip_paths",
 ]
 
@@ -110,8 +111,12 @@ def extract_feedback_line(raw: str) -> str:
 _VERDICT_KEYS = frozenset({"tier", "ok", "converged", "one_line", "raw_log"})
 
 
-def _require_gmat_extra() -> None:
-    """Raise :class:`GmatExtraNotInstalled` unless gmat-run is importable."""
+def require_gmat_extra() -> None:
+    """Raise :class:`GmatExtraNotInstalled` unless gmat-run is importable.
+
+    The eager guard the dynamic tier and its CLI surfaces call before attempting a dry-run, so a
+    missing ``[gmat]`` extra is a clear, actionable error rather than an obscure import failure.
+    """
     if importlib.util.find_spec("gmat_run") is None:
         raise GmatExtraNotInstalled(
             "the gmat-run dry-run needs the optional [gmat] extra and a GMAT install. "
@@ -181,7 +186,7 @@ def dry_run(
     :raises GmatExtraNotInstalled: when the ``[gmat]`` extra (gmat-run) is not importable.
     :returns: the dry-run verdict as a :class:`~gmat_copilot.result.DryRunReport`.
     """
-    _require_gmat_extra()
+    require_gmat_extra()
     root = gmat_root if gmat_root is not None else os.environ.get("GMAT_ROOT", "")
     with tempfile.TemporaryDirectory(prefix="gmat-copilot-dryrun-") as td:
         script_path = Path(td) / "draft.script"

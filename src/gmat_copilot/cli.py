@@ -16,12 +16,14 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .dryrun import GmatExtraNotInstalled, dry_run, require_gmat_extra
 from .eval.judge import JUDGE_MODEL
 from .eval.prompts import load_prompts
 from .eval.runner import EvalReport, record_bundle, run_live, run_recorded
 from .generate import DraftRejected, draft
+from .provenance import Provenance, sidecar_path
 from .providers import ProviderError
-from .result import LintReport
+from .result import CopilotResult, DryRunReport, LintReport
 from .validate import validate
 
 __all__ = ["main"]
@@ -45,6 +47,13 @@ _AUTH_EPILOG = (
     "modes:\n"
     "  --strict (default)  reject a draft that does not lint clean (any error or warning)\n"
     "  --permissive        write the best-effort draft with its diagnostics attached\n"
+    "\n"
+    "close-the-loop (the [gmat] extra is needed only for --dry-run):\n"
+    "  --dry-run           after linting, load/run the draft in GMAT to catch runtime errors\n"
+    "                      (needs the [gmat] extra and a discoverable GMAT install)\n"
+    "  --repair N          on a failing draft, feed the diagnostics back and regenerate up to N\n"
+    "                      times (default 0: a single pass)\n"
+    "  --provenance        also write a .copilot.json provenance sidecar next to the script\n"
 )
 
 
@@ -71,43 +80,136 @@ def _print_diagnostics(report: LintReport) -> None:
         )
 
 
-def _cmd_draft(args: argparse.Namespace) -> int:
-    """Generate a ``.script`` from a request, write it, and print a lint summary (D4/D5/D10).
+def _dry_run_status(report: DryRunReport | None) -> str | None:
+    """One-line dry-run outcome for the summary, or ``None`` when the dynamic tier did not run."""
+    if report is None:
+        return None
+    if report.ok:
+        return "dry-run: ok"
+    detail = report.one_line or "the dry-run failed"
+    return f"dry-run: failed at {report.tier}: {detail}"
 
-    Shared by the headline ``gmat-copilot "<intent>"`` form and the ``draft`` alias. The script is
-    written to ``--output`` (default ``mission.script``; ``-`` for stdout); the lint summary and any
-    diagnostics go to stderr. Strict rejection writes nothing and exits non-zero.
-    """
+
+def _retries_spent(result: CopilotResult) -> int:
+    """How many repair retries the loop spent: one fewer than the recorded draft attempts (D13)."""
+    prov = result.provenance
+    if isinstance(prov, Provenance):
+        return max(len(prov.repair.attempts) - 1, 0)
+    return 0
+
+
+def _generate_summary(result: CopilotResult, args: argparse.Namespace) -> str:
+    """The stderr summary: lint, plus the dry-run outcome and retries when those ran (ASCII)."""
+    parts = [f"lint: {_lint_summary(result.lint)}"]
+    if args.dry_run:
+        parts.append(_dry_run_status(result.dry_run) or "dry-run: skipped (lint not clean)")
+    if args.repair > 0:
+        parts.append(f"retries: {_retries_spent(result)}")
+    return "; ".join(parts)
+
+
+def _ensure_gmat_extra() -> int | None:
+    """Check the ``[gmat]`` extra; return exit code 2 with a clear message when it is absent."""
     try:
-        result = draft(args.request, model=args.model, strict=args.strict)
+        require_gmat_extra()
+    except GmatExtraNotInstalled as exc:
+        print(f"gmat-copilot: {exc}", file=sys.stderr)
+        return 2
+    return None
+
+
+def _report_rejection(result: CopilotResult, args: argparse.Namespace) -> int:
+    """Print why a strict draft was rejected (lint and/or dry-run) and return exit code 1 (D13)."""
+    _print_diagnostics(result.lint)
+    if result.lint.blocking(strict=True):
+        reason = f"lint: {_lint_summary(result.lint)}"
+    elif result.dry_run is not None and not result.dry_run.ok:
+        detail = result.dry_run.one_line or "the dry-run failed"
+        reason = f"dry-run failed at {result.dry_run.tier}: {detail}"
+    else:  # defensive: DraftRejected implies at least one blocking tier
+        reason = _lint_summary(result.lint)
+    spent = ""
+    if args.repair > 0:
+        n = _retries_spent(result)
+        spent = f" (after {n} repair {'retry' if n == 1 else 'retries'})"
+    print(f"gmat-copilot: rejected: {reason}{spent}", file=sys.stderr)
+    return 1
+
+
+def _cmd_draft(args: argparse.Namespace) -> int:
+    """Generate a ``.script`` from a request, write it, and print a summary (D4/D5/D12/D13/D14).
+
+    Shared by the headline ``gmat-copilot "<intent>"`` form and the ``draft`` alias. ``--dry-run``
+    enables the gmat-run tier (needs the ``[gmat]`` extra), ``--repair N`` the bounded repair loop,
+    and ``--provenance`` writes a ``.copilot.json`` sidecar next to the script. The script goes to
+    ``--output`` (default ``mission.script``; ``-`` for stdout); the summary and any diagnostics go
+    to stderr. Strict rejection (after the repair budget) writes nothing and exits non-zero.
+    """
+    if args.repair < 0:
+        print("gmat-copilot: --repair must be >= 0", file=sys.stderr)
+        return 2
+    if args.dry_run:
+        code = _ensure_gmat_extra()
+        if code is not None:
+            return code
+    if args.provenance and args.output == "-":
+        print(
+            "gmat-copilot: --provenance needs a file output for its sidecar, not stdout (-o -)",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        result = draft(
+            args.request,
+            model=args.model,
+            strict=args.strict,
+            repair=args.repair,
+            dry_run=args.dry_run,
+        )
     except DraftRejected as exc:
-        _print_diagnostics(exc.result.lint)
-        print(f"gmat-copilot: lint: rejected: {_lint_summary(exc.result.lint)}", file=sys.stderr)
-        return 1
+        return _report_rejection(exc.result, args)
+    except GmatExtraNotInstalled as exc:  # defensive — the eager check above usually catches it
+        print(f"gmat-copilot: {exc}", file=sys.stderr)
+        return 2
     except ProviderError as exc:
         print(f"gmat-copilot: {exc}", file=sys.stderr)
         return 2
     if not result.lint.clean:
         _print_diagnostics(result.lint)
+    summary = _generate_summary(result, args)
     if args.output == "-":
         sys.stdout.write(result.script)
-        print(f"lint: {_lint_summary(result.lint)}", file=sys.stderr)
+        print(summary, file=sys.stderr)
     else:
-        target = result.save(args.output or "mission.script")
-        print(f"lint: {_lint_summary(result.lint)} -> wrote {target}", file=sys.stderr)
+        target = result.save(args.output or "mission.script", sidecar=args.provenance)
+        suffix = f" -> wrote {target}"
+        if args.provenance:
+            suffix += f" (+ {sidecar_path(target).name})"
+        print(summary + suffix, file=sys.stderr)
     return 0
 
 
 def _cmd_validate(args: argparse.Namespace) -> int:
+    """Lint a script and, with ``--dry-run``, dry-run a lint-clean one in the ``[gmat]`` tier."""
+    if args.dry_run:
+        code = _ensure_gmat_extra()
+        if code is not None:
+            return code
     text = sys.stdin.read() if args.script == "-" else Path(args.script).read_text("utf-8")
     report = validate(text)
     for d in report.diagnostics:
         print(f"{d.line}:{d.column}: {d.severity.value}: {d.rule}: {d.message}")
     blocking = report.blocking(strict=not args.permissive)
+    rejected = bool(blocking)
     if blocking:
         print(f"{len(blocking)} blocking diagnostic(s); script rejected", file=sys.stderr)
-        return 1
-    return 0
+    # The dynamic tier runs only on a lint-clean script (decision D12) and only when asked.
+    if args.dry_run and not report.blocking(strict=True):
+        verdict = dry_run(text)
+        print(_dry_run_status(verdict), file=sys.stderr)
+        if not verdict.ok:
+            rejected = True
+    return 1 if rejected else 0
 
 
 def _print_eval_report(report: EvalReport) -> None:
@@ -195,6 +297,25 @@ def _add_generate_args(parser: argparse.ArgumentParser) -> argparse.ArgumentPars
         help="write the best-effort draft with all diagnostics attached",
     )
     parser.set_defaults(strict=True)
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="after linting, load/run the draft in GMAT (needs the [gmat] extra + a GMAT install)",
+    )
+    parser.add_argument(
+        "--repair",
+        metavar="N",
+        type=int,
+        default=0,
+        help="on a failing draft, feed the diagnostics back and regenerate up to N times "
+        "(default 0: a single pass)",
+    )
+    parser.add_argument(
+        "--provenance",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="also write a .copilot.json provenance sidecar next to the script",
+    )
     return parser
 
 
@@ -231,6 +352,11 @@ def _build_parser() -> argparse.ArgumentParser:
     validate_parser.add_argument("script", help="path to a .script file, or - for stdin")
     validate_parser.add_argument(
         "--permissive", action="store_true", help="report diagnostics without rejecting"
+    )
+    validate_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="also dry-run a lint-clean script in GMAT (needs the [gmat] extra + a GMAT install)",
     )
 
     eval_parser = sub.add_parser("eval", help="run the evaluation suite")
