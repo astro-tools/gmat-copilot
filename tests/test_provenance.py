@@ -237,5 +237,9 @@ def test_save_sidecar_on_a_provenance_less_result_raises(tmp_path: Path) -> None
         provider="recorded",
         model="m",
     )
+    target = tmp_path / "m.script"
     with pytest.raises(TypeError, match="provenance-bearing"):
-        result.save(tmp_path / "m.script", sidecar=True)
+        result.save(target, sidecar=True)
+    # The validation must fail before any write: no orphan .script (and no sidecar) is left behind.
+    assert not target.exists()
+    assert not sidecar_path(target).exists()
