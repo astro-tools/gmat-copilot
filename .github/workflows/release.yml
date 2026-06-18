@@ -35,6 +35,61 @@ jobs:
         with:
           skip-existing: true
 
+  # Publish the VS Code extension (editors/vscode/) to the VS Code Marketplace and Open VSX. Auth is
+  # user-provided tokens stored as the VSCE_PAT and OVSX_PAT repository secrets. These must be created
+  # once before the first tag, alongside the registry identities they authenticate against — like the
+  # PyPI pending publisher, this is a one-time, user-only bootstrap:
+  #   * VS Code Marketplace: create the `astro-tools` publisher at
+  #     https://marketplace.visualstudio.com/manage, mint a PAT, store it as the VSCE_PAT secret.
+  #   * Open VSX: create the `astro-tools` namespace, mint a token from the same account, store it as
+  #     the OVSX_PAT secret.
+  # Until both exist the publish steps below skip silently (each is gated on its token being present),
+  # so a tag cut before the bootstrap is a harmless no-op rather than a failure. Each publish step is
+  # also idempotent: it checks the registry for the current version first, so re-running a tag whose
+  # extension version is already published is a no-op. The extension version is kept in lockstep with
+  # the package release.
+  publish-vscode:
+    name: publish VS Code extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    defaults:
+      run:
+        working-directory: editors/vscode
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - run: npm ci
+      - name: Package the .vsix
+        run: npx @vscode/vsce package --out gmat-copilot.vsix
+      - name: Publish to the VS Code Marketplace
+        if: env.VSCE_PAT != ''
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          id="$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")"
+          if npx @vscode/vsce show "${id}" --json > /tmp/ext.json 2>/dev/null \
+             && node -e "process.exit((JSON.parse(require('fs').readFileSync('/tmp/ext.json','utf8')).versions||[]).some(v => v.version === '${version}') ? 0 : 1)"; then
+            echo "${id}@${version} is already on the Marketplace — skipping."
+          else
+            npx @vscode/vsce publish --packagePath gmat-copilot.vsix
+          fi
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          id="$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")"
+          if npx ovsx get "${id}" -t "${version}" -o /tmp/ovsx.vsix > /dev/null 2>&1; then
+            echo "${id}@${version} is already on Open VSX — skipping."
+          else
+            npx ovsx publish gmat-copilot.vsix
+          fi
+
   github-release:
     name: github release
     needs: publish-pypi

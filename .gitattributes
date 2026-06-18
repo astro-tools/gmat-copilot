@@ -5,3 +5,6 @@ tests/data/** -text
 # The shipped RAG corpus (prebuilt FAISS index + chunk text) is a byte-stable artifact;
 # keep it out of EOL normalisation so the index stays identical across platforms.
 src/gmat_copilot/rag/corpus/** -text
+
+# The VS Code extension listing icon is a binary PNG; keep it out of EOL normalisation.
+editors/vscode/icons/** -text

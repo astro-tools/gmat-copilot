@@ -5,6 +5,7 @@
   "version": "0.3.0",
   "publisher": "astro-tools",
   "license": "MIT",
+  "icon": "icons/gmat-copilot.png",
   "homepage": "https://astro-tools.github.io/gmat-copilot/",
   "repository": {
     "type": "git",
