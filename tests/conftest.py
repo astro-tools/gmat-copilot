@@ -11,6 +11,10 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
+from gmat_copilot.providers import Completion
+from gmat_copilot.rag import Retriever
+from gmat_copilot.result import RetrievalChunk, RetrievalTrace
+
 DATA = Path(__file__).parent / "data"
 
 
@@ -97,6 +101,57 @@ def eval_bundle() -> Path:
 def dryrun_data() -> Path:
     """Root of the lint-clean dry-run fixtures (load- and run-tier defects, a converging target)."""
     return DATA / "dryrun"
+
+
+class StubRetriever(Retriever):
+    """Returns a fixed retrieval trace without touching the (lazily-loaded) corpus index."""
+
+    def __init__(self, chunks: tuple[RetrievalChunk, ...] = ()) -> None:
+        super().__init__()
+        self._chunks = chunks
+
+    def retrieve(self, query: str, *, top_k: int | None = None) -> RetrievalTrace:
+        return RetrievalTrace(chunks=self._chunks)
+
+
+class SequenceProvider:
+    """A deterministic provider that yields a fixed sequence of drafts, ignoring the prompt.
+
+    Lets the repair loop be driven without live inference: the i-th ``complete`` returns the i-th
+    script (clamping to the last once exhausted, so a re-draft of the final script models the
+    no-progress stop). Captures every prompt for assertions on the repair feedback.
+    """
+
+    name = "sequence"
+
+    def __init__(self, scripts: Sequence[str], usage: dict[str, int] | None = None) -> None:
+        self._scripts = list(scripts)
+        self._index = 0
+        self.prompts: list[str] = []
+        self._usage = usage if usage is not None else {"total_tokens": 1}
+
+    def reachable(self) -> bool:
+        return True
+
+    def complete(
+        self, prompt: str, *, model: str, temperature: float = 0.0, max_tokens: int = 1024
+    ) -> Completion:
+        self.prompts.append(prompt)
+        script = self._scripts[min(self._index, len(self._scripts) - 1)]
+        self._index += 1
+        return Completion(text=script, provider=self.name, model=model, usage=dict(self._usage))
+
+
+@pytest.fixture
+def stub_retriever() -> StubRetriever:
+    """A retriever stub with empty grounding."""
+    return StubRetriever()
+
+
+@pytest.fixture
+def sequence_provider() -> type[SequenceProvider]:
+    """The :class:`SequenceProvider` class, to construct with a chosen draft sequence per test."""
+    return SequenceProvider
 
 
 @pytest.fixture
