@@ -204,12 +204,17 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     rejected = bool(blocking)
     if blocking:
         print(f"{len(blocking)} blocking diagnostic(s); script rejected", file=sys.stderr)
-    # The dynamic tier runs only on a lint-clean script (decision D12) and only when asked.
-    if args.dry_run and not report.blocking(strict=True):
-        verdict = dry_run(text)
-        print(_dry_run_status(verdict), file=sys.stderr)
-        if not verdict.ok:
-            rejected = True
+    # The dynamic tier runs only on a lint-clean script (decision D12) and only when asked. When it
+    # is asked for but the script is not lint-clean, say so rather than skipping it silently (the
+    # generate path reports the same skip).
+    if args.dry_run:
+        if report.blocking(strict=True):
+            print("dry-run: skipped (lint not clean)", file=sys.stderr)
+        else:
+            verdict = dry_run(text)
+            print(_dry_run_status(verdict), file=sys.stderr)
+            if not verdict.ok:
+                rejected = True
     return 1 if rejected else 0
 
 
@@ -250,13 +255,15 @@ def _print_lift_report(report: LiftReport) -> None:
 
 
 def _cmd_eval(args: argparse.Namespace) -> int:
-    if args.recorded:
-        _print_eval_report(run_recorded(args.recorded, model=args.model))
-        return 0
-    if args.lift_recorded:
-        _print_lift_report(run_recorded_lift(args.lift_recorded, budget=args.budget))
-        return 0
     try:
+        if args.recorded:
+            # A recorded bundle keyed for a different model raises ProviderError ("no fixture …");
+            # keep it inside the guard so it exits cleanly like the live paths, not as a traceback.
+            _print_eval_report(run_recorded(args.recorded, model=args.model))
+            return 0
+        if args.lift_recorded:
+            _print_lift_report(run_recorded_lift(args.lift_recorded, budget=args.budget))
+            return 0
         if args.lift:
             if not args.prompts:
                 print("gmat-copilot eval --lift: pass --prompts <path>", file=sys.stderr)

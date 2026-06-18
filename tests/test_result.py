@@ -36,6 +36,16 @@ def test_save_accepts_a_string_path(tmp_path: Path) -> None:
     assert out.read_text(encoding="utf-8") == "BeginMissionSequence;\n"
 
 
+def test_save_writes_lf_line_endings(tmp_path: Path) -> None:
+    # The script is written with LF on every platform (newline="\n"), so it matches the LF copy
+    # embedded in its sidecar and is not silently rewritten to CRLF on Windows. read_text would
+    # translate CRLF->LF and hide a regression, so assert on the raw bytes.
+    result = _result("Create Spacecraft Sat;\nBeginMissionSequence;\n")
+    out = result.save(tmp_path / "mission.script")
+    assert b"\r\n" not in out.read_bytes()
+    assert out.read_bytes() == b"Create Spacecraft Sat;\nBeginMissionSequence;\n"
+
+
 def test_blocking_strict_includes_errors_and_warnings() -> None:
     report = LintReport(
         diagnostics=(

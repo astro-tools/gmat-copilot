@@ -20,8 +20,11 @@ import contextlib
 import json
 import sys
 import tempfile
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
+
+from gmat_script import Script
 
 from gmat_copilot.dryrun import extract_feedback_line, strip_paths
 
@@ -30,14 +33,27 @@ from gmat_copilot.dryrun import extract_feedback_line, strip_paths
 _SOLVER_COMMANDS = frozenset({"Target", "Optimize"})
 
 
-def _has_solver(commands: Any) -> bool:
-    """True when any command (or nested branch child) is a ``Target`` / ``Optimize``."""
-    for cmd in commands:
-        if cmd.type_name in _SOLVER_COMMANDS:
-            return True
-        if cmd.children and _has_solver(cmd.children):
-            return True
-    return False
+def _has_solver(script_text: str) -> bool:
+    """True when the script declares a ``Target`` / ``Optimize`` command at any nesting depth.
+
+    Detected by a static ``gmat-script`` parse rather than the runtime mission summary, whose
+    command tree only materialises one level of nesting — a solver nested inside a loop or
+    conditional (legal GMAT) would otherwise be missed, skipping the execution tier and reporting an
+    unconverged nested solver as ``ok``.
+    """
+    keywords: set[str] = set()
+
+    def walk(commands: Iterable[Any]) -> None:
+        for command in commands:
+            keyword = getattr(command, "keyword", "")
+            if keyword:
+                keywords.add(keyword)
+            body = getattr(command, "body", None)
+            if body:
+                walk(body)
+
+    walk(Script.parse(script_text).mission_sequence)
+    return bool(keywords & _SOLVER_COMMANDS)
 
 
 def _err_text(exc: BaseException) -> str:
@@ -81,7 +97,10 @@ def _dry_run(script_path: Path, gmat_root: str | None) -> dict[str, object]:
     root = gmat_root or None
     with tempfile.TemporaryDirectory() as wd:
         load_log = Path(wd) / "gmat_load.log"
-        gmat = bootstrap(locate_gmat(root))
+        try:  # locating / bootstrapping the install can fail (no GMAT, unsupported Python)
+            gmat = bootstrap(locate_gmat(root))
+        except Exception as exc:  # a missing/unloadable install is a load verdict, not a crash
+            return _fail("load", f"{type(exc).__name__}: {exc}")
         # Redirect the GMAT log so a thin GmatLoadError's real cause is recoverable.
         with contextlib.suppress(Exception):  # pragma: no cover - older gmatpy may lack it
             gmat.UseLogFile(str(load_log))
@@ -91,7 +110,7 @@ def _dry_run(script_path: Path, gmat_root: str | None) -> dict[str, object]:
         except Exception as exc:  # surface as a verdict, not a crash
             return _fail("load", _load_text(exc, load_log))
 
-        if not _has_solver(mission.summary().commands):
+        if not _has_solver(script_path.read_text(encoding="utf-8")):
             return {"tier": "load", "ok": True, "converged": None, "one_line": "", "raw_log": ""}
 
         try:  # execution tier (solver present)

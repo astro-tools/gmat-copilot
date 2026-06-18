@@ -8,11 +8,15 @@ from __future__ import annotations
 
 import importlib.util
 import subprocess
+import sys
+import types
+from pathlib import Path
 
 import pytest
 
 from gmat_copilot import DryRunReport, GmatExtraNotInstalled
 from gmat_copilot import dryrun as dryrun_mod
+from gmat_copilot._dryrun_worker import _dry_run, _has_solver
 from gmat_copilot.dryrun import (
     _report_from_verdict,
     _verdict_from_stdout,
@@ -69,12 +73,20 @@ def test_extract_empty_and_blank_return_empty() -> None:
     assert extract_feedback_line("   \n  \n\t\n") == ""
 
 
-def test_strip_paths_collapses_known_artefacts_to_basename() -> None:
+def test_strip_paths_collapses_any_absolute_path_to_basename() -> None:
     assert strip_paths("see /a/b/c/foo.log for details") == "see foo.log for details"
-    assert strip_paths("/x/y z/bar.script") == "bar.script"
     assert strip_paths("no path here") == "no path here"
-    # Only .script/.txt/.log are collapsed; an arbitrary extension is left alone.
-    assert strip_paths("/run/out.report") == "/run/out.report"
+    # Extension-agnostic (decision D12 / spike V5): run-tier artefacts the old .script/.txt/.log
+    # allow-list missed are collapsed too, so a random temp path can't leak through them.
+    assert strip_paths("dump /tmp/gmat-run-q9/DifferentialCorrectorDC.data unreadable") == (
+        "dump DifferentialCorrectorDC.data unreadable"
+    )
+    assert strip_paths("/run/ephem/EphemerisFile1.oem") == "EphemerisFile1.oem"
+    # Per-segment (no spaces): two paths on one line collapse independently, without the greedy
+    # match eating the message text between them.
+    assert strip_paths("both /opt/g/a.script and /var/log/run.log here") == (
+        "both a.script and run.log here"
+    )
 
 
 # --------------------------------------------------------------------------- verdict parsing
@@ -99,7 +111,14 @@ def test_verdict_scans_from_the_tail_past_chatter() -> None:
 
 @pytest.mark.parametrize(
     "stdout",
-    ["", "not json at all", '{"tier":"load"}', '{"a":1}\ntrailing garbage', "[1, 2, 3]"],
+    [
+        "",
+        "not json at all",
+        '{"tier":"load"}',
+        '{"a":1}\ntrailing garbage',
+        "[1, 2, 3]",
+        "{not valid json",  # starts with { but fails to parse -> the JSONDecodeError skip
+    ],
 )
 def test_verdict_rejects_unparseable_or_incomplete(stdout: str) -> None:
     assert _verdict_from_stdout(stdout) is None
@@ -248,3 +267,93 @@ def test_dry_run_degrades_on_crash_and_sanitises_paths(monkeypatch: pytest.Monke
     assert "no verdict" in report.one_line
     assert "draft.script" in report.raw_log
     assert "/tmp" not in report.raw_log  # the local path was sanitised away
+
+
+@pytest.mark.usefixtures("_bypass_guard")
+def test_dry_run_crash_falls_back_to_stdout_when_stderr_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # No JSON verdict and an empty stderr: the raw_log is distilled from stdout instead.
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return _completed(stdout="garbage at /tmp/y/draft.script with no verdict", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    report = dry_run("x")
+    assert report.tier == "crash"
+    assert "draft.script" in report.raw_log
+    assert "/tmp" not in report.raw_log
+
+
+# ----------------------------------------- the worker's GMAT-free surface (static solver detection)
+
+_TARGET_TOP = (
+    "Create Spacecraft Sat;\n"
+    "Create DifferentialCorrector DC;\n"
+    "BeginMissionSequence;\n"
+    "Target DC;\n"
+    "  Vary DC(Sat.SMA = 7000);\n"
+    "  Achieve DC(Sat.SMA = 7100);\n"
+    "EndTarget;\n"
+)
+
+# A Target two levels deep (For > If > Target): the runtime mission summary only materialises one
+# level of nesting, so static detection is what keeps the execution tier from being skipped here.
+_TARGET_NESTED = (
+    "Create Spacecraft Sat;\n"
+    "Create DifferentialCorrector DC;\n"
+    "Create Variable I;\n"
+    "BeginMissionSequence;\n"
+    "For I = 1:2;\n"
+    "  If I == 1;\n"
+    "    Target DC;\n"
+    "      Vary DC(Sat.SMA = 7000);\n"
+    "      Achieve DC(Sat.SMA = 7100);\n"
+    "    EndTarget;\n"
+    "  EndIf;\n"
+    "EndFor;\n"
+)
+
+_SOLVERLESS = (
+    "Create Spacecraft Sat;\n"
+    "Create Propagator Prop;\n"
+    "BeginMissionSequence;\n"
+    "Propagate Prop(Sat) {Sat.ElapsedSecs = 60};\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("script", "expected"),
+    [(_TARGET_TOP, True), (_TARGET_NESTED, True), (_SOLVERLESS, False)],
+)
+def test_has_solver_detects_solvers_at_any_depth(script: str, expected: bool) -> None:
+    assert _has_solver(script) is expected
+
+
+def test_worker_reports_a_missing_install_as_a_load_verdict(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # The [gmat] extra is importable but no GMAT is discoverable, so locate_gmat raises. The worker
+    # must degrade that to an actionable load-tier verdict, not crash into an opaque "no verdict".
+    class GmatNotFoundError(Exception):
+        pass
+
+    def _locate(root: object) -> object:
+        raise GmatNotFoundError("no GMAT install discoverable (set GMAT_ROOT)")
+
+    gmat_run = types.ModuleType("gmat_run")
+    gmat_run.GmatError = type("GmatError", (Exception,), {})  # type: ignore[attr-defined]
+    gmat_run.Mission = object  # type: ignore[attr-defined]
+    install = types.ModuleType("gmat_run.install")
+    install.locate_gmat = _locate  # type: ignore[attr-defined]
+    runtime = types.ModuleType("gmat_run.runtime")
+    runtime.bootstrap = lambda found: None  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "gmat_run", gmat_run)
+    monkeypatch.setitem(sys.modules, "gmat_run.install", install)
+    monkeypatch.setitem(sys.modules, "gmat_run.runtime", runtime)
+
+    script = tmp_path / "draft.script"
+    script.write_text("Create Spacecraft Sat;\nBeginMissionSequence;\n", encoding="utf-8")
+    verdict = _dry_run(script, None)
+    assert verdict["tier"] == "load"
+    assert verdict["ok"] is False
+    assert "GmatNotFoundError" in str(verdict["one_line"])

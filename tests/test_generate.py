@@ -246,6 +246,34 @@ def test_unfenced_completion_passes_through_verbatim(valid_script: str) -> None:
     assert result.script == valid_script
 
 
+def test_script_tagged_fence_is_preferred_over_a_leading_prose_fence(valid_script: str) -> None:
+    # A model that emits a plan in a leading (untagged) fence, then the mission in a ```script
+    # fence. The leading block lints clean on its own, so picking the *first* fence would silently
+    # accept it as the draft and drop the real mission — a wrong result reported as a clean pass.
+    completion = f"```\n% Here is the plan\n```\n\n```script\n{valid_script}```"
+    result = draft(
+        "a 500 km LEO",
+        model="m",
+        strict=True,
+        provider=StubProvider(completion),
+        retriever=StubRetriever(),
+    )
+    assert result.script == valid_script.strip()
+    assert result.lint.clean
+    assert "Here is the plan" not in result.script
+
+
+def test_gmat_tagged_fence_is_recognised(valid_script: str) -> None:
+    result = draft(
+        "a 500 km LEO",
+        model="m",
+        provider=StubProvider(f"```gmat\n{valid_script}```"),
+        retriever=StubRetriever(),
+    )
+    assert result.script == valid_script.strip()
+    assert result.lint.clean
+
+
 def test_recorded_provider_drives_draft_deterministically(valid_script: str) -> None:
     request = "a 500 km circular LEO"
     chunks = (

@@ -65,13 +65,17 @@ _ERROR_RE = re.compile(r"\*+\s*ERROR\s*\*+\s*(?:Interpreter\s+Exception:\s*)?(?P
 _INTERP_RE = re.compile(r"Interpreter\s+Exception:\s*(?P<msg>.+?)\s*$")
 _WARNING_RE = re.compile(r"\*+\s*WARNING\s*\*+\s*(?P<msg>.+?)\s*$")
 _IN_LINE_SUFFIX_RE = re.compile(r"\s+in\s+line:?\s*$")
-# Final guard: collapse any absolute path ending in a known artefact to its basename, so a feedback
-# line never leaks a local filesystem path.
-_ABS_PATH_RE = re.compile(r"/[\w./ -]+/([\w.-]+\.(?:script|txt|log))")
+# Final guard (decision D12 / spike V5): collapse any absolute POSIX path to its basename, so a
+# feedback line or raw log never leaks a local filesystem path. The dry-run runs against a copy in a
+# random temp dir, so the path is non-deterministic noise that must not reach the model feedback or
+# the recorded sidecar. Matched per directory segment (no spaces, no extension allow-list) so it can
+# neither span surrounding message text nor be defeated by a run-tier artefact extension
+# (``.data`` / ``.oem`` / ``.eph`` / ...) the old three-extension guard missed.
+_ABS_PATH_RE = re.compile(r"/(?:[\w.\-]+/)+([\w.\-]+)")
 
 
 def strip_paths(text: str) -> str:
-    """Replace any absolute path to a ``.script`` / ``.txt`` / ``.log`` with its basename."""
+    """Replace any absolute POSIX path (``/dir/.../name``) with its basename (``name``)."""
     return _ABS_PATH_RE.sub(r"\1", text)
 
 
@@ -190,7 +194,7 @@ def dry_run(
     root = gmat_root if gmat_root is not None else os.environ.get("GMAT_ROOT", "")
     with tempfile.TemporaryDirectory(prefix="gmat-copilot-dryrun-") as td:
         script_path = Path(td) / "draft.script"
-        script_path.write_text(script, encoding="utf-8")
+        script_path.write_text(script, encoding="utf-8", newline="\n")
         argv = [sys.executable, "-m", "gmat_copilot._dryrun_worker", "--script", str(script_path)]
         if root:
             argv += ["--gmat-root", root]
