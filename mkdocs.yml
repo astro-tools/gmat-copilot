@@ -40,11 +40,15 @@ nav:
   - Getting started: getting-started.md
   - Examples:
       - Draft a Hohmann transfer: examples/hohmann.md
+      - Close the loop: examples/close-the-loop.md
+      - Read the provenance: examples/read-the-provenance.md
       - Reproduce the eval: examples/reproduce-the-eval.md
       - Add a provider: examples/add-a-provider.md
   - Providers & auth: providers.md
   - Validation: validation.md
+  - Repair loop: repair.md
   - Result schema: output-schema.md
+  - Provenance: provenance.md
   - Evaluation: evaluation.md
   - Corpus & licences: corpus.md
   - API reference: api.md

@@ -12,6 +12,7 @@ The base install is light and GMAT-free. Add the provider you intend to use as a
 pip install "gmat-copilot[anthropic]"   # Claude, via your ANTHROPIC_API_KEY
 pip install "gmat-copilot[openai]"      # OpenAI, via your OPENAI_API_KEY
 pip install "gmat-copilot[ollama]"      # a local Ollama server
+pip install "gmat-copilot[gmat]"        # the GMAT dry-run tier (needs a GMAT install)
 ```
 
 ## Choose a model
@@ -76,11 +77,13 @@ gmat-copilot "a Hohmann transfer to GEO" -m anthropic:claude-... \
   catching runtime errors a static parse cannot. It needs the `[gmat]` extra and a discoverable GMAT
   install (`pip install "gmat-copilot[gmat]"`, plus `GMAT_ROOT` or a standard-location install); the
   default no-extra path is unaffected, and asking for `--dry-run` without it fails with a clear
-  message rather than a traceback.
+  message rather than a traceback. See the [validation contract](validation.md) for the tiers.
 - `--repair N` retries a failing draft up to `N` times, feeding the lint (and, with `--dry-run`,
-  runtime) diagnostics back to the model each round. The default of `0` is a single pass.
+  runtime) diagnostics back to the model each round. The default of `0` is a single pass; see the
+  [repair loop](repair.md).
 - `--provenance` writes a `.copilot.json` sidecar next to the script — the request, the per-attempt
-  draft history, and the outcome — so a generated mission carries a record of how it was produced.
+  draft history, and the outcome — so a generated mission carries a record of how it was produced
+  (the [provenance](provenance.md) page documents the schema).
 
 The summary then reports the dry-run outcome and the retries spent. `validate` gains an optional
 `--dry-run` too, to dry-run an existing script.
@@ -89,5 +92,7 @@ The summary then reports the dry-run outcome and the retries spent. `validate` g
 
 - [Draft a Hohmann transfer](examples/hohmann.md) — a fuller worked example.
 - [Providers & auth](providers.md) — the model selectors and their credentials.
-- [Validation](validation.md) — the strict/permissive lint contract.
+- [Validation](validation.md) — the static lint gate and the dynamic GMAT dry-run.
+- [Repair loop](repair.md) — the bounded regenerate-on-failure loop.
 - [Result schema](output-schema.md) — everything a draft returns.
+- [Provenance](provenance.md) — the `.copilot.json` record of how a draft was produced.

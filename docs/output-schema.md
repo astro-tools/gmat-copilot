@@ -19,7 +19,8 @@ result = draft("a 500 km circular orbit at 51.6 degrees", model="anthropic:claud
 | `provider` | `str` | the provider that produced the draft |
 | `model` | `str` | the model name |
 | `usage` | `dict[str, int]` | the provider's token counts, when reported |
-| `provenance` | `Provenance` | the versioned record of how the draft was produced (see below) |
+| `dry_run` | `DryRunReport \| None` | the winning draft's [dry-run](validation.md) result, or `None` when the dynamic tier did not run |
+| `provenance` | `Provenance` | the versioned record of how the draft was produced (see [Provenance](provenance.md)) |
 
 `result.save(path)` writes `script` to *path* (UTF-8) and returns the written `Path`. Pass
 `sidecar=True` to also write the [provenance sidecar](#provenance) next to it.
@@ -53,34 +54,27 @@ for chunk in result.retrieval.chunks:
     print(f"{chunk.score:.3f}  {chunk.source}")
 ```
 
+## The dry-run report
+
+When the [dynamic dry-run](validation.md) runs, `result.dry_run` is a `DryRunReport`; otherwise it is
+`None`. It records the `tier` reached (`load` or `run`), whether it was `ok`, the per-solver
+`converged` map (or `None`), a single actionable `one_line` of feedback, and the `raw_log`.
+
+```python
+if result.dry_run is not None:
+    print(result.dry_run.tier, result.dry_run.ok)
+```
+
 ## Provenance
 
-`provenance` is a versioned `Provenance` record of how the draft was produced: the `request`, the
-resolved `provider` / `model`, the `retrieval` trace, the per-attempt draft history (each draft with
-its lint report and — when the [dry-run](validation.md) ran — its dry-run result), and the `outcome`
-(which draft won, the final pass/fail under the active mode, and aggregate token usage). It carries
-no credentials — only provider and model *names*.
-
-It is always populated in memory; the sidecar is written only on request:
+`result.provenance` is a versioned `Provenance` record of how the draft was produced — the request,
+the model, the retrieval trace, the per-attempt [repair](repair.md) history, and the outcome. It is
+always populated in memory; pass `sidecar=True` to also write the `.copilot.json` sidecar beside the
+script:
 
 ```python
-result = draft("a 500 km LEO at 51.6 degrees", model="anthropic:claude-...")
-
-result.provenance.repair.stop_reason       # why the loop stopped: clean / budget / ...
-for attempt in result.provenance.repair.attempts:
-    print(attempt.passed, attempt.feedback_tier)
-
-# Write the script and a mission.script.copilot.json sidecar beside it:
-result.save("mission.script", sidecar=True)
+result.save("mission.script", sidecar=True)   # also writes mission.script.copilot.json
 ```
 
-Read a sidecar back into a `Provenance` with `read_sidecar`:
-
-```python
-from gmat_copilot import read_sidecar
-
-prov = read_sidecar("mission.script.copilot.json")
-```
-
-The JSON is stable (sorted keys, a stamped `schema_version`) so a recorded sidecar diffs cleanly.
-The full type signatures are in the [API reference](api.md).
+The [Provenance](provenance.md) page documents the record and the on-disk `.copilot.json` schema in
+full; the [API reference](api.md) carries the type signatures.

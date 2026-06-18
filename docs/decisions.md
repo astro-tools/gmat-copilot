@@ -15,10 +15,22 @@ context and rationale, and the prerequisite-spike measurements behind each) live
   provider explicitly; with none chosen the tool lists the providers it can reach rather than picking
   one. API keys are read from the environment, never committed.
 
-- **Validation.** Generated scripts are checked against the gmat-script linter. In strict mode a draft
-  that does not lint clean (no errors *or* warnings) is rejected; permissive mode returns it with the
-  diagnostics attached. A GMAT dry-run that confirms the script actually executes is planned as a
-  later capability.
+- **Validation.** Generated scripts are validated in two tiers. The static gmat-script linter is
+  always on: in strict mode a draft that does not lint clean (no errors *or* warnings) is rejected;
+  permissive mode returns it with the diagnostics attached. An optional dynamic tier, behind the
+  `[gmat]` extra, then loads a lint-clean script in a real GMAT — and runs it when a solver is
+  present — to catch the runtime errors a static parse cannot. It is a strictly additive backstop; the
+  strict/permissive contract is unchanged.
+
+- **Closing the loop.** A bounded repair loop can feed a failing draft's diagnostics back to the model
+  and regenerate, lint-first — fixing the precise lint failures before the costlier dry-run. It is
+  opt-in (a single pass by default), and a small budget does the work in practice. It stops at the
+  first runnable draft, on budget exhaustion, or when a regenerated draft stops changing.
+
+- **Provenance.** Every draft carries a versioned record of how it was produced — the request, the
+  model, the retrieval trace, the per-attempt draft history, and the outcome. It is always populated
+  in memory; an optional `.copilot.json` sidecar serialises it next to a saved script, written only on
+  request and carrying no credentials.
 
 - **Evaluation.** Quality is measured by a two-layer scorer: deterministic structural checks plus an
   LLM-as-judge for whether a script satisfies the request's intent (two valid scripts of the same
