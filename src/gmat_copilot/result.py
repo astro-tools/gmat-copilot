@@ -2,8 +2,9 @@
 
 One stable contract carries everything a generation request produces: the generated ``.script``
 text, the lint report, the retrieval trace, and the provider/model/usage that produced it. The
-``provenance`` field is reserved for the richer sidecar that records the prompt, retrieved chunks,
-and draft history once the dry-run and repair loop land.
+``provenance`` field carries the versioned record of how the draft was produced — the request, the
+retrieved chunks, the draft history, and the outcome (decision D14) — and :meth:`CopilotResult.save`
+can serialise it to a ``.copilot.json`` sidecar next to the written script.
 """
 
 from __future__ import annotations
@@ -167,13 +168,31 @@ class CopilotResult:
     #: The dynamic dry-run verdict for the final draft, when the dry-run tier ran (decision D12);
     #: ``None`` when the dynamic tier was disabled or never reached (lint blocked first).
     dry_run: DryRunReport | None = None
-    # The repair-loop trace (a :class:`RepairTrace`) once the loop runs (decision D13); the v0.2
-    # provenance sidecar (D14) formalises this into a versioned record. Typed loosely so that later
-    # enrichment is not a schema break.
+    # The versioned provenance record (a ``provenance.Provenance``) once the loop runs — it wraps
+    # the D13 repair trace with the request, provider/model, retrieval, and outcome (decision D14).
+    # Typed loosely so that later enrichment is not a schema break.
     provenance: object | None = None
 
-    def save(self, path: str | Path) -> Path:
-        """Write the generated :attr:`script` to *path* (UTF-8); return the written path."""
+    def save(self, path: str | Path, *, sidecar: bool = False) -> Path:
+        """Write the generated :attr:`script` to *path* (UTF-8); return the written path.
+
+        With ``sidecar=True`` also write the provenance record (decision D14) as a ``.copilot.json``
+        file next to the script (``<path>.copilot.json``). The sidecar is written only on request,
+        never silently; it needs a result from :func:`gmat_copilot.draft` (whose :attr:`provenance`
+        is populated).
+
+        :raises TypeError: when ``sidecar=True`` but :attr:`provenance` is not a populated record
+            (e.g. a hand-built result).
+        """
         target = Path(path)
         target.write_text(self.script, encoding="utf-8")
+        if sidecar:
+            from .provenance import Provenance, sidecar_path, write_sidecar
+
+            if not isinstance(self.provenance, Provenance):
+                raise TypeError(
+                    "save(sidecar=True) needs a provenance-bearing result from draft(); "
+                    f"this result's provenance is {type(self.provenance).__name__}"
+                )
+            write_sidecar(self.provenance, sidecar_path(target))
         return target

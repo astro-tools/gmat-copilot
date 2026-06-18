@@ -19,9 +19,10 @@ result = draft("a 500 km circular orbit at 51.6 degrees", model="anthropic:claud
 | `provider` | `str` | the provider that produced the draft |
 | `model` | `str` | the model name |
 | `usage` | `dict[str, int]` | the provider's token counts, when reported |
-| `provenance` | `object \| None` | reserved (see below); always `None` for now |
+| `provenance` | `Provenance` | the versioned record of how the draft was produced (see below) |
 
-`result.save(path)` writes `script` to *path* (UTF-8) and returns the written `Path`.
+`result.save(path)` writes `script` to *path* (UTF-8) and returns the written `Path`. Pass
+`sidecar=True` to also write the [provenance sidecar](#provenance) next to it.
 
 ## The lint report
 
@@ -52,10 +53,34 @@ for chunk in result.retrieval.chunks:
     print(f"{chunk.score:.3f}  {chunk.source}")
 ```
 
-## Reserved provenance
+## Provenance
 
-`provenance` is reserved for a richer sidecar — the prompt, the retrieved chunks, the draft history,
-and lint/dry-run results — that lands with the dry-run and repair loop. It is kept on the contract
-now so adding it later is not a schema break; for now it is always `None`.
+`provenance` is a versioned `Provenance` record of how the draft was produced: the `request`, the
+resolved `provider` / `model`, the `retrieval` trace, the per-attempt draft history (each draft with
+its lint report and — when the [dry-run](validation.md) ran — its dry-run result), and the `outcome`
+(which draft won, the final pass/fail under the active mode, and aggregate token usage). It carries
+no credentials — only provider and model *names*.
 
+It is always populated in memory; the sidecar is written only on request:
+
+```python
+result = draft("a 500 km LEO at 51.6 degrees", model="anthropic:claude-...")
+
+result.provenance.repair.stop_reason       # why the loop stopped: clean / budget / ...
+for attempt in result.provenance.repair.attempts:
+    print(attempt.passed, attempt.feedback_tier)
+
+# Write the script and a mission.script.copilot.json sidecar beside it:
+result.save("mission.script", sidecar=True)
+```
+
+Read a sidecar back into a `Provenance` with `read_sidecar`:
+
+```python
+from gmat_copilot import read_sidecar
+
+prov = read_sidecar("mission.script.copilot.json")
+```
+
+The JSON is stable (sorted keys, a stamped `schema_version`) so a recorded sidecar diffs cleanly.
 The full type signatures are in the [API reference](api.md).

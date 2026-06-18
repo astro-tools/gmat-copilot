@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from conftest import SequenceProvider, StubRetriever
-from gmat_copilot import RepairTrace, draft
+from gmat_copilot import Provenance, draft
 
 pytestmark = pytest.mark.gmat
 
@@ -33,8 +33,9 @@ def test_loop_drives_a_real_dry_run_to_convergence(
     # The first lint-clean draft failed GMAT's loader; the repair produced a runnable one.
     assert result.script == valid_script
     assert result.dry_run is not None and result.dry_run.ok
-    trace = result.provenance
-    assert isinstance(trace, RepairTrace)
+    prov = result.provenance
+    assert isinstance(prov, Provenance)
+    trace = prov.repair
     assert trace.stop_reason == "clean"
     assert len(trace.attempts) == 2
     first = trace.attempts[0]
