@@ -35,7 +35,10 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
       - run: uv sync --all-groups
-      - run: uv run pytest -m "not eval_smoke" --cov --cov-report=term-missing
+      # `not gmat` keeps the dynamic dry-run tier out of the GMAT-free matrix; it runs in the gated
+      # `dry-run` job below (setup-gmat + the [gmat] extra). The dry-run worker is omitted from the
+      # coverage gate, so this `--cov` run stays GMAT-free and still meets the 90% floor.
+      - run: uv run pytest -m "not eval_smoke and not gmat" --cov --cov-report=term-missing
 
   lint:
     name: lint
@@ -143,3 +146,26 @@ jobs:
           cache-dependency-glob: uv.lock
       - run: uv sync --all-groups --all-extras
       - run: uv run python -c "import anthropic, openai, ollama; import gmat_copilot; print('extras import OK')"
+
+  dry-run:
+    name: dry-run tier (setup-gmat, [gmat] extra)
+    # The dynamic validation tier needs a real GMAT install, supplied by setup-gmat. Kept off the
+    # base matrix (which is GMAT-free) and gated here; the dry-run worker is omitted from coverage,
+    # so this job runs the gmat-marked tests without the coverage gate.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UV_PYTHON: '3.12'
+      HF_HUB_OFFLINE: '1'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - uses: astro-tools/setup-gmat@v0
+        with:
+          version: R2026a
+          cache: true
+      - run: uv sync --all-groups --extra gmat
+      - run: uv run pytest -m gmat
