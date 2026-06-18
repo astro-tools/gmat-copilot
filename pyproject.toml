@@ -131,11 +131,18 @@ testpaths = ["tests"]
 addopts = "-ra --strict-markers --strict-config"
 markers = [
   "eval_smoke: the deterministic recorded-provider eval-smoke (no model calls).",
+  "gmat: the gmat-run dry-run tier; needs the [gmat] extra and a GMAT install (gated CI job).",
 ]
 
 [tool.coverage.run]
 source = ["src/gmat_copilot"]
 branch = true
+omit = [
+  # The dry-run subprocess body only runs under a real GMAT install (the [gmat] extra), exercised
+  # end to end by the gated setup-gmat CI job — not by the GMAT-free coverage gate. Its parent
+  # orchestrator (dryrun.py) is fully covered there.
+  "src/gmat_copilot/_dryrun_worker.py",
+]
 
 [tool.coverage.report]
 show_missing = true
