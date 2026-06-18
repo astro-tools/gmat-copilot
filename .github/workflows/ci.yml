@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Which live eval suite to run (manual dispatch only).
+        type: choice
+        options: [both, static, lift]
+        default: both
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -89,8 +95,11 @@ jobs:
     # Live inference runs ONLY on manual dispatch (decision D7): per-PR CI is the deterministic
     # recorded replay above, so there is no per-PR inference budget to subset. This job is the
     # full-suite live run / fixture-refresh path; it needs a personal MODELS_PAT (the workflow
-    # GITHUB_TOKEN is unreliable for GitHub Models inference).
-    if: github.event_name == 'workflow_dispatch'
+    # GITHUB_TOKEN is unreliable for GitHub Models inference). The `suite` dispatch input selects
+    # which live eval(s) run, so this static suite can be refreshed without the close-the-loop run.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      && (inputs.suite == 'static' || inputs.suite == 'both')
     runs-on: ubuntu-latest
     permissions:
       models: read
@@ -178,8 +187,11 @@ jobs:
     # manual dispatch (decision D7): per-PR CI replays the recorded lift (the eval-smoke job) and
     # re-checks the recorded verdicts against a real GMAT (the dry-run job), neither of which calls a
     # model. This job is the on-demand live run / fixture-refresh path; it needs a personal MODELS_PAT
-    # and is paced to respect the free-tier daily budget.
-    if: github.event_name == 'workflow_dispatch'
+    # and is paced to respect the free-tier daily budget. The `suite` dispatch input selects which
+    # live eval(s) run, so the close-the-loop suite can be refreshed without the static run.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      && (inputs.suite == 'lift' || inputs.suite == 'both')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
