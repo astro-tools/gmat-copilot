@@ -15,9 +15,11 @@ from gmat_script import Severity
 
 __all__ = [
     "CopilotResult",
+    "DraftAttempt",
     "DryRunReport",
     "LintDiagnostic",
     "LintReport",
+    "RepairTrace",
     "RetrievalChunk",
     "RetrievalTrace",
     "Severity",
@@ -118,6 +120,41 @@ class RetrievalTrace:
 
 
 @dataclass(frozen=True, slots=True)
+class DraftAttempt:
+    """One iteration of the repair loop (decision D13): a draft and how it validated.
+
+    The loop generates a draft, lints it, and — when the dynamic tier is enabled and lint is clean —
+    dry-runs it; ``feedback`` is what was fed into the next attempt's repair prompt.
+    """
+
+    script: str
+    lint: LintReport
+    #: The dynamic-tier verdict, when it ran (lint-clean and the dry-run enabled); else ``None``.
+    dry_run: DryRunReport | None
+    #: True when the draft is lint-clean and (if the dynamic tier ran) the dry-run is ``ok``.
+    passed: bool
+    #: The diagnostics fed into the next attempt — empty when the draft passed.
+    feedback: tuple[str, ...]
+    #: Which tier produced the feedback: ``"lint"`` / ``"load"`` / ``"run"`` / ... or ``None``.
+    feedback_tier: str | None
+    #: The generation usage for this attempt (token counts).
+    usage: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class RepairTrace:
+    """The repair loop's per-attempt history and why it stopped (decision D13).
+
+    Attached to :attr:`CopilotResult.provenance` as the substrate the v0.2 provenance sidecar (D14)
+    formalises into a versioned record.
+    """
+
+    attempts: tuple[DraftAttempt, ...]
+    #: Why the loop stopped: ``"clean"`` / ``"budget"`` / ``"no-progress"`` / ``"oscillation"``.
+    stop_reason: str
+
+
+@dataclass(frozen=True, slots=True)
 class CopilotResult:
     """Everything a :func:`gmat_copilot.draft` call produces (decision D10)."""
 
@@ -127,8 +164,12 @@ class CopilotResult:
     provider: str
     model: str
     usage: dict[str, int] = field(default_factory=dict)
-    # Reserved for the v0.2 provenance sidecar (prompt, retrieved chunks, draft history,
-    # lint/dry-run results). Kept on the contract now so adding it later is not a schema break.
+    #: The dynamic dry-run verdict for the final draft, when the dry-run tier ran (decision D12);
+    #: ``None`` when the dynamic tier was disabled or never reached (lint blocked first).
+    dry_run: DryRunReport | None = None
+    # The repair-loop trace (a :class:`RepairTrace`) once the loop runs (decision D13); the v0.2
+    # provenance sidecar (D14) formalises this into a versioned record. Typed loosely so that later
+    # enrichment is not a schema break.
     provenance: object | None = None
 
     def save(self, path: str | Path) -> Path:

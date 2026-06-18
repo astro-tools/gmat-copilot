@@ -11,9 +11,11 @@ from .dryrun import GmatExtraNotInstalled, dry_run
 from .generate import DraftRejected, draft
 from .result import (
     CopilotResult,
+    DraftAttempt,
     DryRunReport,
     LintDiagnostic,
     LintReport,
+    RepairTrace,
     RetrievalChunk,
     RetrievalTrace,
     Severity,
@@ -21,11 +23,13 @@ from .result import (
 
 __all__ = [
     "CopilotResult",
+    "DraftAttempt",
     "DraftRejected",
     "DryRunReport",
     "GmatExtraNotInstalled",
     "LintDiagnostic",
     "LintReport",
+    "RepairTrace",
     "RetrievalChunk",
     "RetrievalTrace",
     "Severity",
