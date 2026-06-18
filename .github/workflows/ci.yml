@@ -218,3 +218,32 @@ jobs:
           --judge-model openai/gpt-4.1-mini
           --budget 2
           --pace 4.5
+
+  extension:
+    name: vscode extension
+    # Builds the editor surface (decision D15) and runs its activation smoke test headless. The
+    # engine worker it drives is pure Python and covered by the test job above; here we only build
+    # the TypeScript bundle, type-check, lint, run the activation test, and validate the .vsix.
+    # Publishing to the Marketplace / Open VSX is a separate release concern.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: editors/vscode
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - run: npm ci
+      - name: Lint, type-check, and run the activation smoke test (headless)
+        run: xvfb-run -a npm test
+      - name: Package the .vsix
+        run: npx @vscode/vsce package --out gmat-copilot.vsix
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vscode-extension-vsix
+          path: editors/vscode/gmat-copilot.vsix
+          if-no-files-found: error
