@@ -8,9 +8,21 @@
 
 ::: gmat_copilot.result
 
+## Provenance
+
+::: gmat_copilot.provenance
+
 ## Validation
 
 ::: gmat_copilot.validate
+
+## Dry-run
+
+::: gmat_copilot.dryrun
+
+## Repair loop
+
+::: gmat_copilot.repair
 
 ## Providers
 
