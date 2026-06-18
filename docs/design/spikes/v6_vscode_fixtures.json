@@ -1,0 +1,10 @@
+{
+  "circular LEO at 500 km, propagate one day, report altitude": {
+    "script_file": "v6_corpus/leo_500km.script",
+    "usage": {"input_tokens": 372, "output_tokens": 196}
+  },
+  "LEO at 7000 km SMA with an 850 kg dry mass, propagate 10 minutes": {
+    "script_file": "v6_corpus/leo_drymass.script",
+    "usage": {"input_tokens": 358, "output_tokens": 204}
+  }
+}
