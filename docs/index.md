@@ -17,8 +17,9 @@ model writes against real syntax rather than from memory. Every draft is checked
 - **Validated, not just generated.** A draft is checked by the [static lint gate](validation.md). In
   strict mode a script that does not lint clean (no errors *or* warnings) is rejected; permissive
   mode returns the best-effort script with the diagnostics attached.
-- **GMAT-free to generate.** Generation and lint validation need no GMAT install. A dynamic GMAT
-  dry-run that confirms a script actually executes is a later, optional capability.
+- **GMAT-free to generate.** Generation and the static lint gate need no GMAT install. A dynamic
+  GMAT dry-run that confirms a script actually loads and runs — with a [bounded repair loop](repair.md)
+  that feeds its failures back to the model — is an optional tier behind the `[gmat]` extra.
 - **Light by default.** A bare install pulls no provider SDK and no GMAT stack — you add only the
   extras you use.
 
