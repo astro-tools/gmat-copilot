@@ -498,9 +498,7 @@ def test_generate_dry_run_skip_on_unclean_draft_is_announced(
     _install_recorded(monkeypatch, request, model, f"```script\n{hallucinated_field_script}```")
     monkeypatch.setattr(importlib.util, "find_spec", lambda name: object())
     out = tmp_path / "mission.script"
-    code = main(
-        [request, "-m", f"github:{model}", "-o", str(out), "--dry-run", "--permissive"]
-    )
+    code = main([request, "-m", f"github:{model}", "-o", str(out), "--dry-run", "--permissive"])
     assert code == 0
     assert out.exists()
     assert "dry-run: skipped (lint not clean)" in capsys.readouterr().err

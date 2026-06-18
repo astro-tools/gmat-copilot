@@ -146,11 +146,11 @@ def _extract_script(text: str) -> str:
     """Return the ``.script`` from a completion, unwrapping the fenced block when one is present.
 
     The output contract asks for a single ``script``-tagged block. When more than one fence is
-    present, a ``script``/``gmat``-tagged block is preferred over an untagged or prose-tagged one, so
-    a model that prefixes its mission with an explanation fence cannot have that explanation extracted
-    as the draft (it would otherwise lint clean and be accepted). Falls back to the first block, then
-    — with no fence at all — to the text unchanged, so a contract violation surfaces as a lint failure
-    (in strict mode) rather than being silently mangled.
+    present, a ``script``/``gmat``-tagged block is preferred over an untagged or prose-tagged one,
+    so a model that prefixes its mission with an explanation fence cannot have that explanation
+    taken as the draft (it would otherwise lint clean and be accepted). Falls back to the first
+    block, then — with no fence at all — to the text unchanged, so a contract violation surfaces as
+    a lint failure (in strict mode) rather than being silently mangled.
     """
     matches = list(_FENCE.finditer(text))
     if not matches:

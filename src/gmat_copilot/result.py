@@ -188,15 +188,15 @@ class CopilotResult:
         if sidecar:
             from .provenance import Provenance, sidecar_path, write_sidecar
 
-            # Validate before writing anything, so a provenance-less result fails cleanly rather than
-            # leaving an orphan .script on disk next to the raised TypeError.
+            # Validate before writing anything, so a provenance-less result fails cleanly rather
+            # than leaving an orphan .script on disk next to the raised TypeError.
             if not isinstance(self.provenance, Provenance):
                 raise TypeError(
                     "save(sidecar=True) needs a provenance-bearing result from draft(); "
                     f"this result's provenance is {type(self.provenance).__name__}"
                 )
-            # Pin LF so the saved script matches the LF copy embedded in its sidecar (and the project
-            # convention of not normalising .script endings), instead of getting CRLF on Windows.
+            # Pin LF so the saved script matches the LF copy embedded in its sidecar (and the
+            # project convention of not normalising .script endings), not CRLF on Windows.
             target.write_text(self.script, encoding="utf-8", newline="\n")
             write_sidecar(self.provenance, sidecar_path(target))
             return target
