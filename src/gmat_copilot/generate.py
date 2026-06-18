@@ -115,9 +115,14 @@ _OUTPUT_CONTRACT = (
     "or after it."
 )
 
-# A fenced code block, optionally language-tagged (```script / ```gmat / bare ```). The script the
-# model emits under the output contract is unwrapped from the first such block.
-_FENCE = re.compile(r"```[^\n`]*\n(?P<body>.*?)\n?```", re.DOTALL)
+# A fenced code block with its language tag captured (```script / ```gmat / bare ```). The script
+# the model emits under the output contract is unwrapped from such a block; extraction prefers a
+# `script`/`gmat`-tagged block so a leading prose/plan fence cannot shadow the real mission.
+_FENCE = re.compile(r"```(?P<tag>[^\n`]*)\n(?P<body>.*?)\n?```", re.DOTALL)
+
+# Tags that mark the fence as the GMAT mission script (vs. a prose/plan/other block the model may
+# emit first). Preferred over an untagged or otherwise-tagged block when several fences are present.
+_SCRIPT_TAGS = frozenset({"script", "gmat"})
 
 
 def _compose_prompt(request: str, retrieval: RetrievalTrace) -> str:
@@ -138,16 +143,22 @@ def _compose_prompt(request: str, retrieval: RetrievalTrace) -> str:
 
 
 def _extract_script(text: str) -> str:
-    """Return the ``.script`` from a completion, unwrapping a fenced block when one is present.
+    """Return the ``.script`` from a completion, unwrapping the fenced block when one is present.
 
-    The output contract asks for a single fenced block; this pulls its content, dropping the fence
-    and any language tag. A completion with no fence is returned unchanged, so a contract violation
-    surfaces as a lint failure (in strict mode) rather than being silently mangled.
+    The output contract asks for a single ``script``-tagged block. When more than one fence is
+    present, a ``script``/``gmat``-tagged block is preferred over an untagged or prose-tagged one, so
+    a model that prefixes its mission with an explanation fence cannot have that explanation extracted
+    as the draft (it would otherwise lint clean and be accepted). Falls back to the first block, then
+    — with no fence at all — to the text unchanged, so a contract violation surfaces as a lint failure
+    (in strict mode) rather than being silently mangled.
     """
-    match = _FENCE.search(text)
-    if match is None:
+    matches = list(_FENCE.finditer(text))
+    if not matches:
         return text
-    return match.group("body").strip()
+    for match in matches:
+        if match.group("tag").strip().lower() in _SCRIPT_TAGS:
+            return match.group("body").strip()
+    return matches[0].group("body").strip()
 
 
 def draft(
