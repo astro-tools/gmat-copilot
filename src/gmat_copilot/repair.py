@@ -14,6 +14,7 @@ it is enabled and the draft is lint-clean, so the GMAT-free path never touches g
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from .dryrun import dry_run as _dry_run
@@ -21,12 +22,18 @@ from .result import DraftAttempt, DryRunReport, LintDiagnostic, LintReport
 from .validate import validate
 
 __all__ = [
+    "DryRunFn",
     "Verdict",
     "aggregate_usage",
     "build_repair_prompt",
     "draft_hash",
     "evaluate",
 ]
+
+#: A dynamic-tier dry-run, injectable into :func:`evaluate` in place of the gmat-run subprocess. The
+#: default (``None``) uses :func:`gmat_copilot.dryrun.dry_run`; a recorded implementation lets the
+#: eval replay the repair loop deterministically, GMAT-free (decisions D7 / D12).
+DryRunFn = Callable[[str], DryRunReport]
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +61,7 @@ def evaluate(
     dry_run: bool,
     gmat_root: str | None = None,
     timeout: float = 300.0,
+    dry_run_fn: DryRunFn | None = None,
 ) -> Verdict:
     """Validate *script* lint-first, then (if enabled and lint-clean) dry-run it (decision D13).
 
@@ -65,6 +73,9 @@ def evaluate(
     :param dry_run: whether to run the dynamic gmat-run tier on a lint-clean draft.
     :param gmat_root: GMAT install root forwarded to the dry-run (else ``GMAT_ROOT`` / discovery).
     :param timeout: wall-clock budget forwarded to the dry-run.
+    :param dry_run_fn: a dynamic-tier dry-run to use in place of the real gmat-run subprocess; the
+        replay seam the recorded eval drives the loop with (decision D7). ``None`` uses the real
+        :func:`gmat_copilot.dryrun.dry_run`.
     """
     report = validate(script)
     blocking = report.blocking(strict=True)
@@ -72,7 +83,11 @@ def evaluate(
         return Verdict(False, report, None, tuple(_lint_line(d) for d in blocking), "lint")
     if not dry_run:
         return Verdict(True, report, None, (), None)
-    dr = _dry_run(script, gmat_root=gmat_root, timeout=timeout)
+    dr = (
+        dry_run_fn(script)
+        if dry_run_fn is not None
+        else _dry_run(script, gmat_root=gmat_root, timeout=timeout)
+    )
     if dr.ok:
         return Verdict(True, report, dr, (), None)
     feedback = (dr.one_line,) if dr.one_line else ("the dry-run failed",)

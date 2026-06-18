@@ -21,7 +21,7 @@ import re
 from .provenance import Outcome, Provenance
 from .providers import Completion, Provider, ProviderError, select
 from .rag import Retriever, assemble_context
-from .repair import aggregate_usage, build_repair_prompt, draft_hash, evaluate
+from .repair import DryRunFn, aggregate_usage, build_repair_prompt, draft_hash, evaluate
 from .result import CopilotResult, DraftAttempt, RepairTrace, RetrievalTrace
 
 __all__ = ["DraftRejected", "draft"]
@@ -162,6 +162,7 @@ def draft(
     repair: int = 0,
     dry_run: bool = False,
     gmat_root: str | None = None,
+    dry_run_fn: DryRunFn | None = None,
 ) -> CopilotResult:
     """Generate a GMAT mission ``.script`` from a natural-language *request*.
 
@@ -192,6 +193,8 @@ def draft(
     :param dry_run: enable the dynamic gmat-run dry-run tier (decision D12) in validation; needs the
         ``[gmat]`` extra and a GMAT install. Off by default, keeping generation GMAT-free.
     :param gmat_root: GMAT install root forwarded to the dry-run (else ``GMAT_ROOT`` / discovery).
+    :param dry_run_fn: a dynamic-tier dry-run to use in place of the real gmat-run subprocess (the
+        eval's deterministic replay seam, decision D7); ``None`` uses the real dry-run.
     :raises DraftRejected: in strict mode, when the final draft still has blocking diagnostics.
     :raises ProviderError: when no model is resolved — either *model* is ``None`` with no provider
         to apply it to, or :func:`~gmat_copilot.providers.select` cannot resolve the selector.
@@ -219,7 +222,7 @@ def draft(
             prompt, model=model, temperature=temperature, max_tokens=max_tokens
         )
         script = _extract_script(last.text)
-        verdict = evaluate(script, dry_run=dry_run, gmat_root=gmat_root)
+        verdict = evaluate(script, dry_run=dry_run, gmat_root=gmat_root, dry_run_fn=dry_run_fn)
         attempts.append(
             DraftAttempt(
                 script=script,
