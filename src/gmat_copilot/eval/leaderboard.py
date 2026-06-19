@@ -32,6 +32,7 @@ from typing import Any
 from ..providers import ProviderError
 from .judge import JUDGE_MODEL
 from .lift import LiftReport, run_recorded_lift
+from .prompts import load_prompts
 from .runner import EvalReport, run_recorded
 
 __all__ = [
@@ -46,6 +47,7 @@ __all__ = [
     "build_leaderboard",
     "bundle_sha16",
     "dumps",
+    "held_out_secrets",
     "score_entry",
     "summarize",
 ]
@@ -219,8 +221,10 @@ def recorded_usage(bundle: Path, *, model: str, n_votes: int) -> dict[str, int]:
             continue
         generations += 1
         for field, value in (entry.get("usage") or {}).items():
-            if isinstance(value, int):
-                totals[field] = totals.get(field, 0) + value
+            # Token counts recorded as floats (e.g. 1234.0) must be summed, not silently dropped;
+            # bool is an int subclass, so exclude it explicitly.
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                totals[field] = totals.get(field, 0) + int(value)
     return {"generation_calls": generations, "judge_calls": generations * n_votes, **totals}
 
 
@@ -340,6 +344,27 @@ def assert_no_leak(serialized: str, secrets: Iterable[str]) -> None:
             raise LeaderboardError("a held-out gold leaked into the published board")
 
 
+def held_out_secrets(config: dict[str, Any], held_out_root: Path) -> list[str]:
+    """The held-out gold strings the published board must never contain — every held-out prompt's
+    request and intent text, read from the private store under *held_out_root*.
+
+    Fed to :func:`assert_no_leak` so the firewall scans the bytes that ship, not just their key
+    names (the structural :func:`assert_aggregate_only` check). Held-out bundles that have not been
+    fetched are skipped, so this is a no-op offline and the realistic content scan only in gated CI.
+    """
+    secrets: list[str] = []
+    for seed in config.get("seeds", []):
+        rel = seed.get("held_out_bundle")
+        if not rel:
+            continue
+        prompts_path = held_out_root / rel / "prompts.json"
+        if not prompts_path.exists():
+            continue
+        for prompt in load_prompts(prompts_path):
+            secrets.extend((prompt.request, prompt.intent))
+    return secrets
+
+
 def build_from_config(
     config: dict[str, Any],
     *,
@@ -396,4 +421,9 @@ def build_from_config(
         public_set=config.get("public_set", {}),
         held_out_set=config.get("held_out_set", {}),
     )
+    # Defence in depth over the structural firewall: when the private held-out store is present (the
+    # gated-CI build), scan the serialized board for any held-out request/intent text, so a gold
+    # smuggled inside an allowed aggregate field is caught, not just an unexpected key name.
+    if held_out_root is not None:
+        assert_no_leak(dumps(board), held_out_secrets(config, held_out_root))
     return board, notes

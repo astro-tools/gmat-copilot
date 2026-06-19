@@ -362,13 +362,17 @@ def _leaderboard_build(args: argparse.Namespace) -> int:
         print(f"gmat-copilot leaderboard build: cannot read {args.config}: {exc}", file=sys.stderr)
         return 2
     held_out_root = Path(args.held_out) if args.held_out else None
-    board, notes = build_from_config(
-        config,
-        root=Path(args.root),
-        generated_at=args.generated_at or _now_utc(),
-        tool_version=__version__,
-        held_out_root=held_out_root,
-    )
+    try:
+        board, notes = build_from_config(
+            config,
+            root=Path(args.root),
+            generated_at=args.generated_at or _now_utc(),
+            tool_version=__version__,
+            held_out_root=held_out_root,
+        )
+    except LeaderboardError as exc:
+        print(f"gmat-copilot leaderboard build: {exc}", file=sys.stderr)
+        return 1
     for note in notes:
         print(f"gmat-copilot leaderboard: {note}", file=sys.stderr)
     text = dumps(board)
