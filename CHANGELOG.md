@@ -6,6 +6,28 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-06-19
+
+Two surfaces for the validated generator: an editor integration and a public, comparable
+scoreboard. Both build on the existing engine — generation and the static lint gate are unchanged,
+and the base install stays GMAT-free.
+
+### Added
+
+- **VS Code extension** — generation commands inside the editor, driving the engine through a thin
+  stdio JSON-RPC worker launched in your own Python environment. A draft is shown as a reviewable
+  diff and applied only on accept (never auto-applied); lint and dry-run findings surface as inline
+  diagnostics, and the provider/model is chosen explicitly from a reachable-providers quick-pick.
+  Every `.script` language feature (highlighting, hover, formatting) stays with the gmat-script
+  extension, which it depends on. Published to the VS Code Marketplace and Open VSX in lockstep with
+  the package (#72, #73).
+- **Per-model leaderboard** — a harness that scores each seeded `provider:model` over the evaluation
+  suite and writes a ranked `leaderboard.json`. It ranks on a never-committed held-out set as the
+  headline, with the committed public set alongside as the offline-reproducible anchor, so a model
+  that overfits the public prompts gains no rank; the board carries aggregates only, and a `verify`
+  step is the firewall that keeps held-out golds off it. Hosted as a static Hugging Face Space — the
+  project's one hosted artifact — rebuilt by a gated CI job and a refresh workflow (#74, #75).
+
 ## [0.2.0] — 2026-06-18
 
 Closes the loop from a natural-language intent to a script validated against a real GMAT.
@@ -71,5 +93,6 @@ through a model you choose. Generation and validation need no GMAT install.
   extras; `CITATION.cff` metadata; and a release workflow that builds, publishes to PyPI via trusted
   publishing, and creates the GitHub release on `v*` tags (#23).
 
+[0.3.0]: https://github.com/astro-tools/gmat-copilot/releases/tag/v0.3.0
 [0.2.0]: https://github.com/astro-tools/gmat-copilot/releases/tag/v0.2.0
 [0.1.0]: https://github.com/astro-tools/gmat-copilot/releases/tag/v0.1.0
