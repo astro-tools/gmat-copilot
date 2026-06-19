@@ -24,6 +24,10 @@ let output: vscode.OutputChannel;
 /** The progress reporter of an in-flight draft, so worker progress notifications can update it. */
 let activeProgress: vscode.Progress<{ message?: string }> | undefined;
 
+/** Guards against re-entrant drafts: one generation at a time keeps the single worker from wedging
+ * (a cancelled draft's provider call still occupies the worker) and the progress reporter unshared. */
+let draftInFlight = false;
+
 /** A read-only scheme backing the apply-to-file diff preview. */
 const DRAFT_SCHEME = "gmat-copilot-draft";
 const draftContents = new Map<string, string>();
@@ -90,6 +94,12 @@ async function draftCommand(source: "input" | "selection"): Promise<void> {
   if (!activeWorker) {
     return;
   }
+  if (draftInFlight) {
+    vscode.window.showInformationMessage(
+      "GMAT Copilot: a draft is already in progress — finish or dismiss it before starting another.",
+    );
+    return;
+  }
   const editor = vscode.window.activeTextEditor;
   const intent = await resolveIntent(source, editor);
   if (!intent) {
@@ -108,36 +118,36 @@ async function draftCommand(source: "input" | "selection"): Promise<void> {
     dryRun: config.get<boolean>("dryRun", false),
   };
 
-  let result: DraftResult;
+  draftInFlight = true;
   try {
-    result = await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, cancellable: true, title: "GMAT Copilot" },
-      async (progress, token) => {
-        activeProgress = progress;
-        progress.report({ message: "Generating the mission script…" });
-        try {
-          return await activeWorker.draft(params, token);
-        } finally {
-          activeProgress = undefined;
-        }
-      },
-    );
-  } catch (err) {
-    if (!isCancellation(err)) {
-      showWorkerError(err);
+    let result: DraftResult;
+    try {
+      result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          cancellable: true,
+          title: "GMAT Copilot",
+        },
+        async (progress, token) => {
+          activeProgress = progress;
+          progress.report({ message: "Generating the mission script…" });
+          try {
+            return await activeWorker.draft(params, token);
+          } finally {
+            activeProgress = undefined;
+          }
+        },
+      );
+    } catch (err) {
+      if (!isCancellation(err)) {
+        showWorkerError(err);
+      }
+      return;
     }
-    return;
+    await presentResult(editor, result);
+  } finally {
+    draftInFlight = false;
   }
-
-  applyDiagnostics(editor?.document, result.diagnostics);
-  if (result.rejected) {
-    vscode.window.showWarningMessage(
-      "GMAT Copilot: the draft did not validate clean and was not applied. See the Problems panel — " +
-        "switch to permissive mode or refine the prompt.",
-    );
-    return;
-  }
-  await reviewAndApply(editor, result);
 }
 
 async function resolveIntent(
@@ -162,20 +172,53 @@ async function resolveIntent(
 }
 
 // -------------------------------------------------------------------- apply-to-current-file UX
-async function reviewAndApply(
+// The worker's diagnostics index into the *generated script*, so they are attached to a document
+// that actually holds that script — the applied target or a scratch document — never the pre-apply
+// active buffer (whose content is still the user's old text, so the squiggles would land on the
+// wrong lines), and never dropped when the draft opens in a fresh document.
+async function presentResult(
   editor: vscode.TextEditor | undefined,
   result: DraftResult,
 ): Promise<void> {
-  const script = result.script;
+  if (result.rejected) {
+    // Strict rejected the draft, so the user's file is left untouched. Open the best-effort draft in
+    // a scratch document so its findings line up with the text they point at, in the Problems panel.
+    const doc = await openDraft(result.script);
+    applyDiagnostics(doc, result.diagnostics);
+    vscode.window.showWarningMessage(rejectionMessage(result));
+    return;
+  }
   if (!editor) {
-    const doc = await vscode.workspace.openTextDocument({ language: "gmat", content: script });
-    await vscode.window.showTextDocument(doc);
+    const doc = await openDraft(result.script);
+    applyDiagnostics(doc, result.diagnostics);
     vscode.window.showInformationMessage(
       "GMAT Copilot: no active editor to apply to — opened the draft in a new document for review.",
     );
     return;
   }
+  await reviewAndApply(editor, result);
+}
 
+/** Open the generated script in a fresh editor document for review (no active file to apply to). */
+async function openDraft(script: string): Promise<vscode.TextDocument> {
+  const doc = await vscode.workspace.openTextDocument({ language: "gmat", content: script });
+  await vscode.window.showTextDocument(doc);
+  return doc;
+}
+
+/** Why a strict draft was rejected — a lint failure or, with the dry-run on, a runtime failure. */
+function rejectionMessage(result: DraftResult): string {
+  const dryRun = result.dryRun;
+  const why =
+    dryRun && !dryRun.ok ? `did not pass the ${dryRun.tier}-tier dry-run` : "did not lint clean";
+  return (
+    `GMAT Copilot: the draft ${why} and was not applied. It is open for review with the findings ` +
+    "in the Problems panel — switch to permissive mode or refine the prompt."
+  );
+}
+
+async function reviewAndApply(editor: vscode.TextEditor, result: DraftResult): Promise<void> {
+  const script = result.script;
   const target = editor.document;
   const label = target.isUntitled ? "untitled" : path.basename(target.fileName);
   const draftUri = vscode.Uri.parse(`${DRAFT_SCHEME}:/${draftCounter++}/${label}`);
@@ -194,6 +237,7 @@ async function reviewAndApply(
       "Discard",
     );
     if (choice !== "Apply") {
+      // Discarded: leave the user's file and any existing diagnostics on it untouched.
       return;
     }
     const edit = new vscode.WorkspaceEdit();
@@ -203,6 +247,10 @@ async function reviewAndApply(
     );
     edit.replace(target.uri, fullRange, script);
     const applied = await vscode.workspace.applyEdit(edit);
+    if (applied) {
+      // The target now holds the generated script, so the diagnostics line up with its content.
+      applyDiagnostics(target, result.diagnostics);
+    }
     vscode.window.showInformationMessage(
       applied
         ? "GMAT Copilot: draft applied to the active file."
