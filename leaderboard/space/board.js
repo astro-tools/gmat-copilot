@@ -175,10 +175,10 @@ function renderMeta(board) {
       ["Judge model", board.judge_model],
       ["Public set", `${publicSet.n_prompts ?? "?"} prompts · committed · reproduces offline`],
       [
+        // The held-out size is deliberately not published — revealing it serves the overfitter, not
+        // the reader, and the board never carries the count anyway (anti-overfitting hygiene, D16).
         "Held-out set",
-        `${heldOutSet.n_prompts ?? "?"} prompts · never committed · ${
-          heldOutSet.store || "private store, scored in gated CI"
-        }`,
+        `never committed · ${heldOutSet.store || "private store, scored in gated CI"}`,
       ],
     ])
   );
