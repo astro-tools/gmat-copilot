@@ -315,10 +315,11 @@ jobs:
           uv run python -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p, encoding="utf-8")); d = next(iter(d.values())) if d and all(isinstance(v, dict) for v in d.values()) else d; json.dump(d, open(p, "w", encoding="utf-8"), indent=2, sort_keys=True)' "$DIR/judge.json"
       - name: Fetch the private held-out bundles (if the dataset is configured)
         if: env.HF_TOKEN != '' && env.HELDOUT_DATASET != ''
+        # The HF Hub Python API (stable across the huggingface-cli -> hf CLI rename). HF_TOKEN
+        # authenticates the read of the private dataset; an empty dataset downloads to an empty dir
+        # and leaves every held-out cell pending.
         run: |
-          uvx --from huggingface_hub huggingface-cli download "$HELDOUT_DATASET" \
-            --repo-type dataset \
-            --local-dir leaderboard/.cache/heldout
+          uvx --from huggingface_hub python -c 'import os; from huggingface_hub import snapshot_download; snapshot_download(repo_id=os.environ["HELDOUT_DATASET"], repo_type="dataset", local_dir="leaderboard/.cache/heldout")'
       - name: Build the board
         run: |
           uv run gmat-copilot leaderboard build \
@@ -332,11 +333,12 @@ jobs:
         # never reach the Space. The Space payload is the committed static front end plus the freshly
         # built board, pushed via the HF Hub API; the published JSON carries aggregates only.
         if: inputs.publish_space && env.HF_TOKEN != '' && env.SPACE_REPO != ''
+        # The HF Hub Python API (stable across the huggingface-cli -> hf CLI rename). The Space payload
+        # is the committed static front end plus the freshly built board; the published JSON carries
+        # aggregates only (the preceding verify step is the firewall).
         run: |
           cp leaderboard/leaderboard.json leaderboard/space/leaderboard.json
-          uvx --from huggingface_hub huggingface-cli upload "$SPACE_REPO" leaderboard/space . \
-            --repo-type space \
-            --commit-message "Refresh leaderboard (eval protocol $(uv run python -c 'import json; print(json.load(open("leaderboard/leaderboard.json"))["eval_protocol_version"])'))"
+          uvx --from huggingface_hub python -c 'import os, json; from huggingface_hub import upload_folder; v = json.load(open("leaderboard/leaderboard.json"))["eval_protocol_version"]; upload_folder(repo_id=os.environ["SPACE_REPO"], repo_type="space", folder_path="leaderboard/space", commit_message=f"Refresh leaderboard (eval protocol {v})")'
       - uses: actions/upload-artifact@v7
         with:
           name: leaderboard
