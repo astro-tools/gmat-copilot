@@ -25,6 +25,11 @@ site/
 # prebuilt index (src/gmat_copilot/rag/corpus/index.faiss) is a committed artifact.
 .cache/
 
+# Leaderboard held-out + live-recorded bundles are fetched into this cache by gated CI and must
+# NEVER be committed: the held-out golds are the anti-overfitting firewall (decision D16). The
+# published board (leaderboard/leaderboard.json) and the seed config are committed; this cache is not.
+leaderboard/.cache/
+
 # Editors / OS
 .vscode/
 .idea/

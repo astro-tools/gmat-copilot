@@ -1,0 +1,63 @@
+{
+  "entries": [
+    {
+      "close_the_loop": {
+        "base_runnable": 0.25,
+        "dry_run_agreement": {
+          "easy": 1.0,
+          "hard": 0.0,
+          "medium": 0.0
+        },
+        "repair_lift": 0.5,
+        "repaired_runnable": 0.75
+      },
+      "held_out": {
+        "pass_rate": null,
+        "status": "pending: scored in gated CI against the never-committed held-out set"
+      },
+      "kind": "seed",
+      "model": "openai/gpt-4.1-mini",
+      "overfit_gap": null,
+      "provider": "github",
+      "public": {
+        "by_tier": {
+          "easy": 0.85,
+          "hard": 0.846,
+          "medium": 0.722
+        },
+        "n_prompts": 51,
+        "pass_rate": 0.804
+      },
+      "rank": 1,
+      "run": {
+        "judge_model": "openai/gpt-4.1-mini",
+        "n_votes": 3,
+        "recorded_bundle_sha16": "a0cab7b3f7de44b4",
+        "submitted_by": "seed",
+        "tool_version": "0.2.0",
+        "verified": true
+      },
+      "usage": {
+        "completion_tokens": 9647,
+        "generation_calls": 51,
+        "judge_calls": 153,
+        "prompt_tokens": 133128,
+        "total_tokens": 142775
+      }
+    }
+  ],
+  "eval_protocol_version": "1",
+  "generated_at": "2026-06-18T00:00:00Z",
+  "held_out_set": {
+    "committed": false,
+    "store": "private HF Dataset (HF_TOKEN), scored in gated CI only"
+  },
+  "judge_model": "openai/gpt-4.1-mini",
+  "public_set": {
+    "committed": true,
+    "n_prompts": 51,
+    "note": "the committed recorded eval bundle; reproduces byte-for-byte via `gmat-copilot leaderboard verify`. Each row's run.recorded_bundle_sha16 pins it.",
+    "reproducible_offline": true
+  },
+  "ranking": "held_out.pass_rate desc - the headline; public shown alongside as the anchor"
+}

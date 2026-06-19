@@ -12,12 +12,22 @@ model-free.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
 from .dryrun import GmatExtraNotInstalled, dry_run, require_gmat_extra
 from .eval.judge import JUDGE_MODEL
+from .eval.leaderboard import (
+    LeaderboardError,
+    assert_aggregate_only,
+    build_from_config,
+    bundle_sha16,
+    dumps,
+    summarize,
+)
 from .eval.lift import DEFAULT_BUDGET, LiftReport, run_live_lift, run_recorded_lift
 from .eval.prompts import load_prompts
 from .eval.runner import EvalReport, record_bundle, run_live, run_recorded
@@ -31,7 +41,11 @@ __all__ = ["main"]
 
 # The named subcommands. A leading token that is neither one of these nor a flag is taken as an
 # intent for the headline generate form, ``gmat-copilot "<intent>" ...``.
-_SUBCOMMANDS = ("draft", "validate", "eval")
+_SUBCOMMANDS = ("draft", "validate", "eval", "leaderboard")
+
+# The committed defaults for the leaderboard subcommand: the seed config and the published board.
+_LEADERBOARD_CONFIG = "leaderboard/seeds.json"
+_LEADERBOARD_BOARD = "leaderboard/leaderboard.json"
 
 # Documents model selection and the per-provider credentials for the generate help text (decision
 # D4). Kept ASCII so the help renders on a Windows cp1252 console.
@@ -322,6 +336,105 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     return 0
 
 
+def _now_utc() -> str:
+    """The current UTC time as a ``Z``-suffixed ISO-8601 stamp (the board's ``generated_at``)."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _cmd_leaderboard(args: argparse.Namespace) -> int:
+    if args.leaderboard_command == "build":
+        return _leaderboard_build(args)
+    if args.leaderboard_command == "verify":
+        return _leaderboard_verify(args)
+    print(
+        "gmat-copilot leaderboard: pass `build` to assemble the board from the seed config, or "
+        "`verify` to re-derive each row's public score from its recorded bundle (decision D7).",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def _leaderboard_build(args: argparse.Namespace) -> int:
+    """Assemble ``leaderboard.json`` from the seed config via the recorded scorer (decision D16)."""
+    try:
+        config = json.loads(Path(args.config).read_text("utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"gmat-copilot leaderboard build: cannot read {args.config}: {exc}", file=sys.stderr)
+        return 2
+    held_out_root = Path(args.held_out) if args.held_out else None
+    board, notes = build_from_config(
+        config,
+        root=Path(args.root),
+        generated_at=args.generated_at or _now_utc(),
+        tool_version=__version__,
+        held_out_root=held_out_root,
+    )
+    for note in notes:
+        print(f"gmat-copilot leaderboard: {note}", file=sys.stderr)
+    text = dumps(board)
+    if args.out == "-":
+        sys.stdout.write(text)
+    else:
+        Path(args.out).write_text(text, encoding="utf-8")
+        print(f"wrote {len(board['entries'])} row(s) to {args.out}", file=sys.stderr)
+    return 0
+
+
+def _leaderboard_verify(args: argparse.Namespace) -> int:
+    """Re-derive each seeded row's public score + bundle hash and check the firewall (decision D16).
+
+    The reproducibility audit a third party runs: the **public** number must reproduce byte-for-byte
+    from the committed recorded bundle, and the board must carry no per-prompt gold (aggregate-only,
+    decision D7). The held-out cells are not re-derived here — they reproduce only in gated CI,
+    which is exactly the firewall.
+    """
+    try:
+        board = json.loads(Path(args.board).read_text("utf-8"))
+        config = json.loads(Path(args.config).read_text("utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"gmat-copilot leaderboard verify: cannot read input: {exc}", file=sys.stderr)
+        return 2
+    try:
+        assert_aggregate_only(board)
+    except LeaderboardError as exc:
+        print(f"gmat-copilot leaderboard verify: {exc}", file=sys.stderr)
+        return 1
+
+    seeds = {seed["model"]: seed for seed in config.get("seeds", [])}
+    problems: list[str] = []
+    checked = 0
+    for row in board.get("entries", []):
+        model = row["model"]
+        seed = seeds.get(model)
+        if seed is None:
+            print(
+                f"gmat-copilot leaderboard: skip {model}: no seed config to reproduce",
+                file=sys.stderr,
+            )
+            continue
+        public_dir = Path(args.root) / seed["public_bundle"]
+        if not (public_dir / "completions.json").exists():
+            problems.append(f"{model}: public bundle absent, cannot reproduce")
+            continue
+        try:
+            got = summarize(run_recorded(public_dir, model=model)).to_dict()
+        except ProviderError as exc:
+            problems.append(f"{model}: {exc}")
+            continue
+        if got != row["public"]:
+            problems.append(f"{model}: public score does not reproduce ({got} != {row['public']})")
+        if bundle_sha16(public_dir) != row["run"]["recorded_bundle_sha16"]:
+            problems.append(f"{model}: recorded bundle hash does not match the row")
+        checked += 1
+
+    if problems:
+        for problem in problems:
+            print(f"gmat-copilot leaderboard verify: {problem}", file=sys.stderr)
+        return 1
+    print(f"verified: {checked} public row(s) reproduce; board is aggregate-only", file=sys.stderr)
+    return 0
+
+
 def _add_generate_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     """Add the generate arguments shared by the bare ``<intent>`` form and the ``draft`` alias."""
     parser.add_argument("request", help="what the script should do, in natural language")
@@ -460,7 +573,65 @@ def _build_parser() -> argparse.ArgumentParser:
         help=f"repair retry budget for --lift / --lift-recorded (default {DEFAULT_BUDGET}: the D13 "
         "budget)",
     )
+
+    _add_leaderboard_parser(sub)
     return parser
+
+
+def _add_leaderboard_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    """Register the ``leaderboard build`` / ``leaderboard verify`` subcommands (decision D16)."""
+    parser = sub.add_parser(
+        "leaderboard",
+        help="build or verify the per-model leaderboard over the eval suite",
+        description="Assemble the per-model leaderboard from the recorded eval bundles, ranked on "
+        "the never-committed held-out headline with the committed public set as the anchor, or "
+        "verify that a published board reproduces.",
+    )
+    board_sub = parser.add_subparsers(dest="leaderboard_command")
+
+    build = board_sub.add_parser("build", help="assemble leaderboard.json from the seed config")
+    build.add_argument(
+        "--config", default=_LEADERBOARD_CONFIG, metavar="PATH", help="seed config JSON"
+    )
+    build.add_argument(
+        "--out",
+        default=_LEADERBOARD_BOARD,
+        metavar="PATH",
+        help="where to write leaderboard.json (use - for stdout)",
+    )
+    build.add_argument(
+        "--held-out",
+        metavar="DIR",
+        help="root of the never-committed held-out bundles (fetched in gated CI); omit to leave "
+        "every held-out cell pending",
+    )
+    build.add_argument(
+        "--generated-at",
+        metavar="ISO",
+        help="board timestamp (default: now, UTC); pass a fixed value for a reproducible build",
+    )
+    build.add_argument(
+        "--root",
+        default=".",
+        metavar="DIR",
+        help="repo root the config's bundle paths resolve under",
+    )
+
+    verify = board_sub.add_parser(
+        "verify", help="re-derive each row's public score from its recorded bundle (decision D7)"
+    )
+    verify.add_argument(
+        "board", nargs="?", default=_LEADERBOARD_BOARD, help="path to a published leaderboard.json"
+    )
+    verify.add_argument(
+        "--config", default=_LEADERBOARD_CONFIG, metavar="PATH", help="seed config JSON"
+    )
+    verify.add_argument(
+        "--root",
+        default=".",
+        metavar="DIR",
+        help="repo root the config's bundle paths resolve under",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -476,6 +647,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_validate(args)
     if args.command == "eval":
         return _cmd_eval(args)
+    if args.command == "leaderboard":
+        return _cmd_leaderboard(args)
     parser.print_help()
     return 0
 

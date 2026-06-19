@@ -1,0 +1,32 @@
+{
+  "eval_protocol_version": "1",
+  "n_votes": 3,
+  "judge_model": "openai/gpt-4.1-mini",
+  "public_set": {
+    "n_prompts": 51,
+    "committed": true,
+    "reproducible_offline": true,
+    "note": "the committed recorded eval bundle; reproduces byte-for-byte via `gmat-copilot leaderboard verify`. Each row's run.recorded_bundle_sha16 pins it."
+  },
+  "held_out_set": {
+    "committed": false,
+    "store": "private HF Dataset (HF_TOKEN), scored in gated CI only"
+  },
+  "seeds": [
+    {
+      "provider": "github",
+      "model": "openai/gpt-4.1-mini",
+      "kind": "seed",
+      "public_bundle": "tests/data/eval",
+      "lift_bundle": "tests/data/eval_lift",
+      "held_out_bundle": "openai__gpt-4.1-mini"
+    },
+    {
+      "provider": "github",
+      "model": "openai/gpt-4o-mini",
+      "kind": "seed",
+      "public_bundle": "leaderboard/.cache/public/openai__gpt-4o-mini",
+      "held_out_bundle": "openai__gpt-4o-mini"
+    }
+  ]
+}

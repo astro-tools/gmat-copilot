@@ -11,6 +11,13 @@ on:
         type: choice
         options: [both, static, lift]
         default: both
+      leaderboard:
+        description: >-
+          Leaderboard seeding (manual dispatch only): skip; build the board from the committed +
+          fetched bundles; or seed (also live-record the second seed model, spending MODELS_PAT).
+        type: choice
+        options: [skip, build, seed]
+        default: skip
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -246,4 +253,71 @@ jobs:
         with:
           name: vscode-extension-vsix
           path: editors/vscode/gmat-copilot.vsix
+          if-no-files-found: error
+
+  leaderboard:
+    name: leaderboard (build + verify, gated)
+    # The per-model leaderboard engine (decision D16). Manual dispatch only: the held-out score uses
+    # the LLM judge's frozen gold verdicts from a private store, and `seed` spends live GitHub Models
+    # quota — neither belongs on the per-PR path. `build` assembles the board from the committed
+    # public bundle plus any held-out fetched from the private store; `seed` additionally live-records
+    # the second seed model. The board is uploaded as an artifact; rendering it on the static HF Space
+    # is a separate surface. The committed board (leaderboard/leaderboard.json) is the gpt-4.1-mini
+    # public anchor; this job refreshes it with held-out scores + additional seeds when configured.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      && (inputs.leaderboard == 'build' || inputs.leaderboard == 'seed')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      models: read
+      contents: read
+    env:
+      UV_PYTHON: '3.12'
+      # MODELS_PAT drives the `seed` live record (the workflow GITHUB_TOKEN is unreliable for GitHub
+      # Models). HF_TOKEN + the HELDOUT_DATASET repo variable fetch the never-committed held-out from
+      # its private HF Dataset (decision D16); until that dataset is authored (release cut), the fetch
+      # is skipped and every held-out cell stays pending.
+      MODELS_PAT: ${{ secrets.MODELS_PAT }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HELDOUT_DATASET: ${{ vars.LEADERBOARD_HELDOUT_DATASET }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --all-groups
+      - name: Record the second seed's public bundle (live; paced for the free daily cap)
+        if: inputs.leaderboard == 'seed'
+        continue-on-error: true
+        run: |
+          DIR=leaderboard/.cache/public/openai__gpt-4o-mini
+          mkdir -p "$DIR"
+          cp tests/data/eval/prompts.json "$DIR/prompts.json"
+          uv run gmat-copilot eval --record "$DIR" \
+            -m github:openai/gpt-4o-mini \
+            --judge-model openai/gpt-4.1-mini \
+            --pace 4.5
+          # `eval --record` keys judge.json by the judge model; normalise it to the flat,
+          # model-agnostic {prompt_id: verdicts} form the committed gold bundle uses, so the board's
+          # run_recorded replay scores this generation model correctly (decisions D7, D11).
+          uv run python -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p, encoding="utf-8")); d = next(iter(d.values())) if d and all(isinstance(v, dict) for v in d.values()) else d; json.dump(d, open(p, "w", encoding="utf-8"), indent=2, sort_keys=True)' "$DIR/judge.json"
+      - name: Fetch the private held-out bundles (if the dataset is configured)
+        if: env.HF_TOKEN != '' && env.HELDOUT_DATASET != ''
+        run: |
+          uvx --from huggingface_hub huggingface-cli download "$HELDOUT_DATASET" \
+            --repo-type dataset \
+            --local-dir leaderboard/.cache/heldout
+      - name: Build the board
+        run: |
+          uv run gmat-copilot leaderboard build \
+            --out leaderboard/leaderboard.json \
+            --held-out leaderboard/.cache/heldout
+      - name: Verify the board reproduces offline and leaks no held-out gold
+        run: uv run gmat-copilot leaderboard verify leaderboard/leaderboard.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: leaderboard
+          path: leaderboard/leaderboard.json
           if-no-files-found: error
