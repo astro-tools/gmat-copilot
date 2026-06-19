@@ -25,6 +25,8 @@ from gmat_copilot.eval.leaderboard import (
     build_leaderboard,
     close_the_loop_from_lift,
     dumps,
+    held_out_secrets,
+    recorded_usage,
     score_entry,
     summarize,
 )
@@ -244,6 +246,69 @@ def test_assert_no_leak_raises_when_a_secret_appears() -> None:
         assert_no_leak(
             '{"held_out": {"status": "HELDOUT-PRIVATE-DO-NOT-PUBLISH"}}', [HELDOUT_SENTINEL]
         )
+
+
+def test_held_out_secrets_reads_the_private_request_and_intent_text(tmp_path: Path) -> None:
+    held_out_root = tmp_path / "heldout"
+    _write_bundle(
+        held_out_root / "demo__m", [_prompt("h", secret=True)], {"demo/m": {"h": GOOD_SCRIPT}}
+    )
+    config = {"seeds": [{"model": "demo/m", "held_out_bundle": "demo__m"}]}
+    secrets = held_out_secrets(config, held_out_root)
+    assert len(secrets) == 2 and all(HELDOUT_SENTINEL in s for s in secrets)  # request + intent
+    # a seed whose held-out bundle has not been fetched contributes nothing (a no-op offline)
+    absent = {"seeds": [{"model": "x", "held_out_bundle": "absent"}]}
+    assert held_out_secrets(absent, held_out_root) == []
+
+
+def test_build_runs_the_content_firewall_over_held_out_secrets(tmp_path: Path) -> None:
+    # The board is aggregate-only, so to prove the *content* scan runs we contrive a held-out gold
+    # equal to a published model name — which legitimately appears in the board — and assert the
+    # gated build fails rather than publishing it.
+    public_dir = tmp_path / "public"
+    held_out_root = tmp_path / "heldout"
+    _write_bundle(public_dir, [_prompt("p", secret=False)], {"demo/m": {"p": GOOD_SCRIPT}})
+    leak = {
+        "id": "h",
+        "difficulty": "easy",
+        "request": "demo/m",
+        "intent": "demo/m",
+        "structural": SPEC,
+    }
+    _write_bundle(held_out_root / "demo__m", [leak], {"demo/m": {"h": GOOD_SCRIPT}})
+    config = {
+        "seeds": [
+            {
+                "provider": "github",
+                "model": "demo/m",
+                "public_bundle": "public",
+                "held_out_bundle": "demo__m",
+            }
+        ]
+    }
+    with pytest.raises(LeaderboardError, match="leaked"):
+        build_from_config(
+            config,
+            root=tmp_path,
+            generated_at="2026-01-01T00:00:00Z",
+            tool_version=TOOL_VERSION,
+            held_out_root=held_out_root,
+        )
+
+
+def test_recorded_usage_coerces_float_token_totals(tmp_path: Path) -> None:
+    # Token counts recorded as floats (e.g. 1234.0) are summed, not silently dropped; a bool is not.
+    bundle = tmp_path / "b"
+    _write_bundle(bundle, [_prompt("p", secret=False)], {"demo/m": {"p": GOOD_SCRIPT}})
+    comp_path = bundle / "completions.json"
+    comp = json.loads(comp_path.read_text("utf-8"))
+    key = next(iter(comp))
+    comp[key]["usage"] = {"total_tokens": 1234.0, "prompt_tokens": 1000, "flag": True}
+    comp_path.write_text(json.dumps(comp), "utf-8")
+    usage = recorded_usage(bundle, model="demo/m", n_votes=3)
+    assert usage["total_tokens"] == 1234  # float coerced to int, not dropped
+    assert usage["prompt_tokens"] == 1000
+    assert "flag" not in usage  # a bool usage field is excluded, not summed as 1
 
 
 # --- pending held-out and ranking edge cases ---

@@ -674,3 +674,105 @@ def test_validate_dry_run_failure_rejects(
     script.write_text(valid_script, encoding="utf-8")
     assert main(["validate", str(script), "--dry-run"]) == 1
     assert "dry-run: failed at load" in capsys.readouterr().err
+
+
+# ------------------------------------------------------------------------- the leaderboard command
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SEEDS = str(_REPO_ROOT / "leaderboard" / "seeds.json")
+_BOARD = str(_REPO_ROOT / "leaderboard" / "leaderboard.json")
+_SEED_MODEL = "openai/gpt-4.1-mini"
+
+
+def _write_min_bundle(bundle: Path, *, model: str, request: str) -> None:
+    """A one-prompt recorded bundle: enough for the leaderboard scorer to produce a board row."""
+    bundle.mkdir(parents=True, exist_ok=True)
+    prompts = [
+        {
+            "id": "p",
+            "difficulty": "easy",
+            "request": request,
+            "intent": request,
+            "structural": {"required_types": ["Spacecraft"]},
+        }
+    ]
+    completions = {
+        prompt_key("github", model, request): {"text": "Create Spacecraft Sat;\n", "usage": {}}
+    }
+    (bundle / "prompts.json").write_text(json.dumps(prompts), "utf-8")
+    (bundle / "completions.json").write_text(json.dumps(completions), "utf-8")
+    (bundle / "judge.json").write_text(json.dumps({"p": [True]}), "utf-8")
+
+
+def test_leaderboard_build_writes_the_board(tmp_path: Path) -> None:
+    out = tmp_path / "board.json"
+    code = main(
+        [
+            "leaderboard",
+            "build",
+            "--config",
+            _SEEDS,
+            "--root",
+            str(_REPO_ROOT),
+            "--out",
+            str(out),
+            "--generated-at",
+            "2026-01-01T00:00:00Z",
+        ]
+    )
+    assert code == 0
+    board = json.loads(out.read_text("utf-8"))
+    assert _SEED_MODEL in [row["model"] for row in board["entries"]]
+
+
+def test_leaderboard_build_missing_config_returns_2(tmp_path: Path) -> None:
+    assert main(["leaderboard", "build", "--config", str(tmp_path / "nope.json")]) == 2
+
+
+def test_leaderboard_build_firewall_blocks_a_leaking_held_out(tmp_path: Path) -> None:
+    # A held-out gold contrived to equal the published model name reaches the aggregate board, so
+    # the content firewall in the gated build path fails the build (exit 1) instead of publishing.
+    _write_min_bundle(tmp_path / "public", model="demo/m", request="the public prompt")
+    _write_min_bundle(tmp_path / "heldout" / "demo__m", model="demo/m", request="demo/m")
+    config = tmp_path / "seeds.json"
+    config.write_text(
+        json.dumps(
+            {
+                "seeds": [
+                    {
+                        "provider": "github",
+                        "model": "demo/m",
+                        "public_bundle": "public",
+                        "held_out_bundle": "demo__m",
+                    }
+                ]
+            }
+        ),
+        "utf-8",
+    )
+    code = main(
+        [
+            "leaderboard",
+            "build",
+            "--config",
+            str(config),
+            "--root",
+            str(tmp_path),
+            "--held-out",
+            str(tmp_path / "heldout"),
+            "--out",
+            str(tmp_path / "board.json"),
+            "--generated-at",
+            "2026-01-01T00:00:00Z",
+        ]
+    )
+    assert code == 1
+
+
+def test_leaderboard_verify_reproduces_the_committed_board() -> None:
+    code = main(["leaderboard", "verify", _BOARD, "--config", _SEEDS, "--root", str(_REPO_ROOT)])
+    assert code == 0
+
+
+def test_leaderboard_no_subcommand_prints_usage(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["leaderboard"]) == 0
+    assert "build" in capsys.readouterr().err

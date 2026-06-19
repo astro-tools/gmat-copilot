@@ -97,32 +97,45 @@ def write_message(writer: BinaryIO, message: Mapping[str, Any]) -> None:
 
 
 # ------------------------------------------------------------------- engine result -> VS Code shape
-def _line_end_char(text: str, line_1indexed: int) -> int:
-    """The 0-indexed end-of-line character, so a start-only diagnostic gets a visible squiggle.
+def _utf16_len(text: str) -> int:
+    """The length of *text* in UTF-16 code units — VS Code's position unit."""
+    return len(text.encode("utf-16-le")) // 2
 
-    ``LintDiagnostic`` keeps only the start position; widening to the line end gives the Problems
-    panel a non-empty range to underline.
+
+def _byte_col_to_utf16(line_text: str, column_1indexed: int) -> int:
+    """Convert a gmat-script 1-indexed UTF-8 *byte* column into a 0-indexed UTF-16 code-unit offset.
+
+    gmat-script positions are 1-indexed byte offsets within their line (its compiler convention),
+    while VS Code ranges are 0-indexed UTF-16 code units. The two coincide only for ASCII — any
+    multi-byte character earlier on the line (a unicode comment, a degree sign) would otherwise
+    shift the squiggle. ``errors="ignore"`` keeps a malformed byte from crashing the surface; a byte
+    column that splits a code point falls back to the nearest valid prefix.
     """
-    lines = text.splitlines()
-    idx = line_1indexed - 1
-    return len(lines[idx]) if 0 <= idx < len(lines) else 0
+    byte_offset = max(column_1indexed - 1, 0)
+    prefix = line_text.encode("utf-8")[:byte_offset].decode("utf-8", errors="ignore")
+    return _utf16_len(prefix)
 
 
 def to_vscode_diagnostics(report: LintReport, source_text: str) -> list[dict[str, Any]]:
     """Map a :class:`LintReport` into the VS Code ``Diagnostic`` JSON the Problems panel consumes.
 
-    gmat-script positions are 1-indexed; VS Code ranges are 0-indexed. ``source`` and ``code`` let
-    the user filter gmat-copilot findings and click through to the rule.
+    gmat-script positions are 1-indexed byte columns; VS Code ranges are 0-indexed UTF-16 units, so
+    each column is converted (not merely decremented). ``LintDiagnostic`` keeps only the start
+    position, so the range is widened to the line end to give the Problems panel a visible squiggle.
+    ``source`` and ``code`` let the user filter gmat-copilot findings and click through to the rule.
     """
+    lines = source_text.splitlines()
     out: list[dict[str, Any]] = []
     for d in report.diagnostics:
         line0 = max(d.line - 1, 0)
-        char0 = max(d.column - 1, 0)
+        line_text = lines[line0] if 0 <= line0 < len(lines) else ""
+        end_char = _utf16_len(line_text)
+        start_char = min(_byte_col_to_utf16(line_text, d.column), end_char)
         out.append(
             {
                 "range": {
-                    "start": {"line": line0, "character": char0},
-                    "end": {"line": line0, "character": _line_end_char(source_text, d.line)},
+                    "start": {"line": line0, "character": start_char},
+                    "end": {"line": line0, "character": end_char},
                 },
                 "severity": _VSCODE_SEVERITY.get(d.severity, 3),
                 "source": "gmat-copilot",
@@ -282,7 +295,11 @@ class _Worker:
         if msg_id is None:
             return  # an unrecognised notification — nothing to answer
         if method == "shutdown":
+            # Acknowledge, then stop the read loop so the child exits on its own. This is a private
+            # command protocol, not a real LSP server, so shutdown *is* the stop signal — the client
+            # need not also send `exit`, and its `proc.kill()` is only a backstop.
             self._respond(msg_id, {"ok": True})
+            self._running = False
             return
         event = threading.Event()
         with self._cancels_lock:

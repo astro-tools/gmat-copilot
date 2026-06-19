@@ -219,11 +219,14 @@ def draft(
     :param gmat_root: GMAT install root forwarded to the dry-run (else ``GMAT_ROOT`` / discovery).
     :param dry_run_fn: a dynamic-tier dry-run to use in place of the real gmat-run subprocess (the
         eval's deterministic replay seam, decision D7); ``None`` uses the real dry-run.
-    :param cancel: an optional predicate polled at each repair-attempt boundary (decision D15); when
-        it returns true before an attempt begins, generation stops with :class:`DraftCancelled`. An
-        in-flight provider call or dry-run runs to completion, so a single pass (``repair=0``) has
-        no boundary to cancel at.
-    :raises DraftCancelled: when *cancel* returns true before an attempt begins.
+    :param cancel: an optional predicate polled before each attempt begins and again after the
+        provider returns, before validation (decision D15); when it returns true generation stops
+        with :class:`DraftCancelled`. The in-flight provider call (and a running dry-run) still
+        completes — cancelling does not abort an HTTP request mid-flight — but a cancel observed
+        after generation skips the potentially expensive dry-run, so even a single pass
+        (``repair=0``) is cancellable between its generate and validate phases.
+    :raises DraftCancelled: when *cancel* returns true before an attempt begins or after the
+        provider returns.
     :raises DraftRejected: in strict mode, when the final draft still has blocking diagnostics.
     :raises ProviderError: when no model is resolved — either *model* is ``None`` with no provider
         to apply it to, or :func:`~gmat_copilot.providers.select` cannot resolve the selector.
@@ -254,6 +257,10 @@ def draft(
         last = provider.complete(
             prompt, model=model, temperature=temperature, max_tokens=max_tokens
         )
+        if cancel is not None and cancel():
+            raise DraftCancelled(
+                f"generation cancelled after attempt {attempt + 1} of {repair + 1}"
+            )
         script = _extract_script(last.text)
         verdict = evaluate(script, dry_run=dry_run, gmat_root=gmat_root, dry_run_fn=dry_run_fn)
         attempts.append(
