@@ -64,7 +64,14 @@ held-out is authored on every eval-protocol bump (see the refresh policy in `doc
 2. **Author real prompts.** Edit the draft `prompts.json` into never-before-seen held-out prompts
    (same schema as the public set: `id`, `difficulty`, `request`, `intent`, `structural`).
 
-3. **Record a bundle per seed model** (spends GitHub Models quota; pace for the free daily cap):
+3. **Record a bundle per seed model** (spends GitHub Models quota; pace for the free daily cap).
+
+   The free tier is capped **per user, per model, per day** (the 429 carries
+   `x-ratelimit-type: UserByModelByDay` and a `retry-after` of up to ~24h). The judge and the
+   `gpt-4.1-mini` generation share that model's daily budget, so a ~12-prompt held-out (`N` + `3N`
+   calls) is about one day's allowance — and the cap is **account-wide**, so it cannot be dodged by
+   moving the run to gated CI. If recording 429s with `RateLimitReached`, the day's budget is spent;
+   wait out `retry-after` (or split the seeds across days) and re-run.
 
    ```bash
    DRAFT=leaderboard/.cache/heldout-draft
