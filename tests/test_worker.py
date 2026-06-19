@@ -17,11 +17,12 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
+from gmat_script import Severity
 
 from gmat_copilot import CopilotResult, DraftCancelled, DraftRejected, draft
 from gmat_copilot import worker as worker_mod
 from gmat_copilot.providers import ProviderError
-from gmat_copilot.result import DryRunReport, RetrievalTrace
+from gmat_copilot.result import DryRunReport, LintDiagnostic, LintReport, RetrievalTrace
 from gmat_copilot.validate import validate
 from gmat_copilot.worker import (
     apply_to_file_edit,
@@ -76,6 +77,54 @@ def test_diagnostics_are_zero_indexed_and_attributed(hallucinated_field_script: 
     assert mapped["source"] == "gmat-copilot"
     assert mapped["code"] == src.rule
     assert mapped["severity"] == 1  # a WARNING
+
+
+@pytest.mark.parametrize(
+    ("line", "column", "expected"),
+    [
+        ("Create Spacecraft Sat;", 1, 0),  # ASCII: byte column 1 -> UTF-16 unit 0
+        ("Create Spacecraft Sat;", 8, 7),  # ASCII: byte column n -> unit n - 1
+        ("% é tag", 6, 4),  # 'é' is 2 UTF-8 bytes / 1 UTF-16 unit, so byte 6 -> unit 4
+        ("% \U0001f6f0 sat", 8, 5),  # 🛰 is 4 bytes / 2 units (a surrogate pair)
+        ("", 1, 0),  # an empty line clamps to the start
+    ],
+)
+def test_byte_column_maps_to_utf16_unit(line: str, column: int, expected: int) -> None:
+    assert worker_mod._byte_col_to_utf16(line, column) == expected
+
+
+def test_diagnostics_use_utf16_units_not_byte_offsets() -> None:
+    # gmat-script reports a 1-indexed UTF-8 *byte* column; VS Code ranges are 0-indexed UTF-16.
+    # A multi-byte character before the column means a bare `column - 1` would land the squiggle too
+    # far right, and a code-point line length would overstate the end. Both must convert.
+    source = "% é tag\n"  # the line "% é tag": 7 code points, 8 UTF-8 bytes, 7 UTF-16 units
+    report = LintReport(
+        diagnostics=(
+            LintDiagnostic(
+                rule="unknown-field", severity=Severity.WARNING, message="m", line=1, column=6
+            ),
+        )
+    )
+    mapped = to_vscode_diagnostics(report, source)[0]
+    assert mapped["range"]["start"]["character"] == 4  # 't' at UTF-16 unit 4, not byte offset 5
+    assert mapped["range"]["end"]["character"] == 7  # end of "% é tag" in units (7), not bytes (8)
+
+
+def test_diagnostic_column_past_line_end_clamps_to_a_valid_range() -> None:
+    # A column beyond the line (or a line beyond the source) must still yield start <= end, so VS
+    # Code never gets an inverted range.
+    report = LintReport(
+        diagnostics=(
+            LintDiagnostic(rule="x", severity=Severity.ERROR, message="m", line=1, column=999),
+            LintDiagnostic(rule="y", severity=Severity.ERROR, message="m", line=9, column=1),
+        )
+    )
+    mapped = to_vscode_diagnostics(report, "short\n")
+    assert mapped[0]["range"]["start"]["character"] == mapped[0]["range"]["end"]["character"] == 5
+    assert mapped[1]["range"] == {
+        "start": {"line": 8, "character": 0},
+        "end": {"line": 8, "character": 0},
+    }
 
 
 def test_apply_to_file_edit_is_a_full_document_replace() -> None:
@@ -243,6 +292,20 @@ def test_shutdown_is_acknowledged() -> None:
     assert next(m["result"] for m in out if m.get("id") == 9) == {"ok": True}
 
 
+def test_shutdown_stops_the_serve_loop() -> None:
+    # shutdown both acknowledges *and* stops the read loop, so the worker exits on its own (the
+    # client need not also send `exit`). A request queued after shutdown is therefore never run.
+    out = _drive(
+        [
+            {"jsonrpc": "2.0", "id": 20, "method": "shutdown"},
+            {"jsonrpc": "2.0", "id": 21, "method": "copilot/providers", "params": {}},
+        ]
+    )
+    ids = [m.get("id") for m in out]
+    assert 20 in ids  # shutdown acknowledged
+    assert 21 not in ids  # the loop stopped before the trailing request was read
+
+
 def test_cancel_request_aborts_an_in_flight_draft(monkeypatch: pytest.MonkeyPatch) -> None:
     started = threading.Event()
 
@@ -305,6 +368,23 @@ def test_draft_cancel_before_first_attempt(
             cancel=lambda: True,
         )
     assert provider.prompts == []  # cancelled before the model was ever called
+
+
+def test_draft_cancel_after_provider_in_single_pass(
+    stub_retriever: Any, sequence_provider: Any, valid_script: str
+) -> None:
+    # Even a single pass (repair=0) is cancellable between generate and validate: a cancel observed
+    # after the provider returns stops the draft before the potentially expensive dry-run runs.
+    provider = sequence_provider([valid_script])
+    calls = {"n": 0}
+
+    def cancel() -> bool:
+        calls["n"] += 1
+        return calls["n"] > 1  # False before the attempt, True once the provider has returned
+
+    with pytest.raises(DraftCancelled):
+        draft("x", model="m", provider=provider, retriever=stub_retriever, repair=0, cancel=cancel)
+    assert len(provider.prompts) == 1  # the model ran once, then the post-call cancel fired
 
 
 def test_draft_cancel_between_repair_attempts(
