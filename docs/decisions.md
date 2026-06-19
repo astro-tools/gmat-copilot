@@ -41,5 +41,22 @@ context and rationale, and the prerequisite-spike measurements behind each) live
   outputs and judge verdicts, with no live inference. Live model runs happen only on demand (to
   refresh fixtures or run the full suite).
 
+- **VS Code surface.** The editor extension drives the engine through a thin stdio JSON-RPC command
+  worker (launched in your own Python environment), not a CLI shell-out and not a second language
+  server. It contributes **generation commands only**; every `.script` language feature
+  (highlighting, lint-on-type, hover, formatting) stays with the gmat-script extension, which it
+  depends on. A draft is presented as a **reviewable diff and applied only on accept** — never
+  auto-applied; lint and dry-run findings surface as inline diagnostics, and the provider/model is
+  explicit (no default, via a reachable-providers quick-pick).
+
+- **Leaderboard & anti-overfitting.** The per-model leaderboard is a **static Hugging Face Space**
+  rendering a `leaderboard.json` produced by gated CI; it runs no inference and scores no submission
+  live (the LLM judge is quota-capped and non-deterministic, so scoring stays in CI). It **ranks on a
+  never-committed held-out set** — the headline — with the committed public set shown alongside as the
+  reproducibility anchor, so a model that overfits the public prompts gains no rank. The board carries
+  aggregates only; no held-out gold ever reaches it. An entrant submits a recorded bundle that
+  reproduces its public score offline, and the maintainer scores its `provider:model` against the
+  private held-out in gated CI.
+
 - **Licence & footprint.** MIT-licensed; the base install is light and **GMAT-free**. Provider SDKs and
   the GMAT dry-run support are optional extras you add only if you use them.

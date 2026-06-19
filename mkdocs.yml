@@ -44,11 +44,14 @@ nav:
       - Read the provenance: examples/read-the-provenance.md
       - Reproduce the eval: examples/reproduce-the-eval.md
       - Add a provider: examples/add-a-provider.md
+      - Drive it from VS Code: examples/in-vscode.md
+      - Reproduce a leaderboard entry: examples/reproduce-a-leaderboard-entry.md
   - Providers & auth: providers.md
   - Validation: validation.md
   - Repair loop: repair.md
   - Result schema: output-schema.md
   - Provenance: provenance.md
+  - VS Code extension: vscode.md
   - Evaluation: evaluation.md
   - Leaderboard: leaderboard.md
   - Corpus & licences: corpus.md

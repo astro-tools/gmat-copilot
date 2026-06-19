@@ -1,5 +1,11 @@
 # gmat-copilot
 
+[![CI](https://github.com/astro-tools/gmat-copilot/actions/workflows/ci.yml/badge.svg)](https://github.com/astro-tools/gmat-copilot/actions/workflows/ci.yml)
+[![Docs](https://github.com/astro-tools/gmat-copilot/actions/workflows/docs.yml/badge.svg)](https://astro-tools.github.io/gmat-copilot/)
+[![PyPI](https://img.shields.io/pypi/v/gmat-copilot.svg)](https://pypi.org/project/gmat-copilot/)
+[![Python versions](https://img.shields.io/pypi/pyversions/gmat-copilot.svg)](https://pypi.org/project/gmat-copilot/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Turn a natural-language request into a GMAT mission `.script` — grounded in the GMAT
 documentation, validated against a static linter, and produced through a model you choose.**
 
@@ -87,6 +93,25 @@ Here the first draft failed the dry-run and one repair pass produced a runnable 
 - `--provenance` writes a `.copilot.json` sidecar next to the script — the request, the per-attempt
   draft history, and the outcome — so a generated mission records how it was produced.
 
+## In your editor
+
+The same engine is available in VS Code through the **GMAT Copilot** extension — install it from the
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=astro-tools.gmat-copilot)
+or [Open VSX](https://open-vsx.org/extension/astro-tools/gmat-copilot):
+
+- **Draft a Mission from a Description…** — type a prompt, then review the generated script as a diff
+  against the active file and **apply it only on accept**. Nothing is written silently and nothing is
+  auto-applied; in strict mode a draft that does not lint clean is not applied at all.
+- Lint (and the optional dry-run) findings land in the **Problems panel** as inline diagnostics.
+- The provider/model is explicit — there is no default — via a **Select the Provider and Model…**
+  quick-pick over the providers your credentials can reach.
+
+The extension is a thin client over the engine; all `.script` language features (highlighting,
+lint-on-type, hover, formatting) come from the
+[GMAT Script](https://github.com/astro-tools/gmat-script) extension, which it depends on. See the
+[VS Code docs](https://astro-tools.github.io/gmat-copilot/vscode/) for the commands, settings, and
+the apply-to-current-file flow.
+
 ## Validation contract
 
 Validation runs in two tiers, static then dynamic:
@@ -107,21 +132,28 @@ Generation and the lint gate need no GMAT install — only the dry-run tier does
   their results.
 - **Not** a correctness guarantee — the lint gate catches malformed scripts, not wrong physics.
   Always review and run generated scripts.
+- **Not** an auto-applier — in the editor a draft is shown as a reviewable diff and written only when
+  you accept it; it never edits your file unattended.
 - **Not** a model vendor — it ships no model, recommends none, and never silently falls back to one.
+- **Not** a hosted service — the only thing gmat-copilot hosts is the leaderboard, a presentation-only
+  board that scores no submissions live. The library and CLI run entirely on your machine.
 
 ## Documentation
 
 Full docs are at **<https://astro-tools.github.io/gmat-copilot/>** — getting started, the
 provider/auth model, the validation contract, the repair loop, the result schema and the provenance
-sidecar, the evaluation protocol, the corpus and its licences, worked examples (draft a Hohmann
-transfer, close the loop, read the provenance, reproduce the eval, add a provider), an API reference,
-and the design decisions.
+sidecar, the VS Code extension, the evaluation protocol, the leaderboard, the corpus and its licences,
+worked examples (draft a Hohmann transfer, close the loop, read the provenance, reproduce the eval,
+add a provider, drive it from VS Code, reproduce a leaderboard entry), an API reference, and the
+design decisions.
 
 The per-model **leaderboard** is hosted as a static Hugging Face Space —
 **<https://huggingface.co/spaces/astro-tools/gmat-copilot-leaderboard>** — ranking `provider:model`s
 on the evaluation suite. It ranks on a never-committed held-out set (the headline) with the committed
-public set shown alongside as the reproducibility anchor; see the
-[leaderboard docs](https://astro-tools.github.io/gmat-copilot/leaderboard/).
+public set shown alongside as the reproducibility anchor, so overfitting the public prompts buys no
+rank. Any model can be entered by PRing a recorded bundle that reproduces its public score offline;
+the [leaderboard docs](https://astro-tools.github.io/gmat-copilot/leaderboard/) cover how to read the
+board and submit an entry.
 
 ## License
 

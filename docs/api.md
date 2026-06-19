@@ -35,3 +35,7 @@
 ## Evaluation
 
 ::: gmat_copilot.eval
+
+## Leaderboard
+
+::: gmat_copilot.eval.leaderboard
