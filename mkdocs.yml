@@ -50,6 +50,7 @@ nav:
   - Result schema: output-schema.md
   - Provenance: provenance.md
   - Evaluation: evaluation.md
+  - Leaderboard: leaderboard.md
   - Corpus & licences: corpus.md
   - API reference: api.md
   - Design:
