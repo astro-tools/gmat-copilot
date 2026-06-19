@@ -28,9 +28,14 @@ model writes against real syntax rather than from memory. Every draft is checked
 - It is **not** a GMAT replacement or a mission optimiser — it writes the script; GMAT runs it.
 - It does **not** guarantee a *correct mission* — the lint gate catches malformed scripts, not wrong
   physics. Always review and run generated scripts.
+- It does **not** auto-apply — in the [editor](vscode.md) a draft is a reviewable diff, written only
+  when you accept it.
 - It does **not** ship or recommend a model, and it never silently falls back to one.
+- It is **not** a hosted service — the only thing it hosts is the presentation-only
+  [leaderboard](leaderboard.md); the library and CLI run entirely on your machine.
 
 See **[Getting started](getting-started.md)** to install and draft your first script, then
-**[draft a Hohmann transfer](examples/hohmann.md)**. The [evaluation protocol](evaluation.md) and the
-[corpus and its licences](corpus.md) document how quality is measured and what grounds generation;
-the **[Design decisions](decisions.md)** record the choices that shape the tool.
+**[draft a Hohmann transfer](examples/hohmann.md)** or **[drive it from VS Code](examples/in-vscode.md)**.
+The [evaluation protocol](evaluation.md) and the [corpus and its licences](corpus.md) document how
+quality is measured and what grounds generation, the [leaderboard](leaderboard.md) compares models,
+and the **[Design decisions](decisions.md)** record the choices that shape the tool.

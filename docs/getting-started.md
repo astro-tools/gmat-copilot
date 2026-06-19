@@ -88,9 +88,25 @@ gmat-copilot "a Hohmann transfer to GEO" -m anthropic:claude-... \
 The summary then reports the dry-run outcome and the retries spent. `validate` gains an optional
 `--dry-run` too, to dry-run an existing script.
 
+## In your editor
+
+The same engine is available in VS Code through the **GMAT Copilot** extension — install it from the
+[Marketplace](https://marketplace.visualstudio.com/items?itemName=astro-tools.gmat-copilot) or
+[Open VSX](https://open-vsx.org/extension/astro-tools/gmat-copilot), point it at the Python
+environment that holds `gmat-copilot`, and draft a mission from a description. The result is shown as
+a reviewable diff and applied only when you accept it. See the [VS Code extension](vscode.md) page for
+the commands and settings.
+
+## Compare models
+
+The per-model [leaderboard](leaderboard.md) ranks `provider:model`s on the evaluation suite, hosted as
+a static Hugging Face Space. It ranks on a never-committed held-out set with the committed public set
+as the reproducibility anchor; any model can be entered by submitting a recorded bundle.
+
 ## Next
 
 - [Draft a Hohmann transfer](examples/hohmann.md) — a fuller worked example.
+- [Drive it from VS Code](examples/in-vscode.md) — the editor walkthrough end to end.
 - [Providers & auth](providers.md) — the model selectors and their credentials.
 - [Validation](validation.md) — the static lint gate and the dynamic GMAT dry-run.
 - [Repair loop](repair.md) — the bounded regenerate-on-failure loop.
