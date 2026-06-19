@@ -3,6 +3,15 @@
 from __future__ import annotations
 
 from .judge import JUDGE_MODEL, JUDGE_SYSTEM, judge, judge_verdicts, majority, parse_verdict
+from .leaderboard import (
+    BoardRow,
+    LeaderboardError,
+    build_from_config,
+    build_leaderboard,
+    dumps,
+    score_entry,
+    summarize,
+)
 from .lift import (
     DraftScore,
     LiftReport,
@@ -18,15 +27,20 @@ from .scorer import StructuralResult, structural_score
 __all__ = [
     "JUDGE_MODEL",
     "JUDGE_SYSTEM",
+    "BoardRow",
     "DraftScore",
     "EvalPrompt",
     "EvalReport",
+    "LeaderboardError",
     "LiftReport",
     "LiftRow",
     "PromptOutcome",
     "RecordedDryRun",
     "StructuralResult",
     "StructuralSpec",
+    "build_from_config",
+    "build_leaderboard",
+    "dumps",
     "judge",
     "judge_verdicts",
     "load_prompts",
@@ -37,5 +51,7 @@ __all__ = [
     "run_live_lift",
     "run_recorded",
     "run_recorded_lift",
+    "score_entry",
     "structural_score",
+    "summarize",
 ]
