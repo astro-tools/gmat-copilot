@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>gmat-copilot leaderboard</title>
+    <meta
+      name="description"
+      content="Per-model leaderboard for gmat-copilot: ranked on a never-committed held-out headline, with the committed public set shown alongside as the reproducibility anchor."
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="masthead">
+        <h1>gmat-copilot leaderboard</h1>
+        <p class="tagline">
+          Per-model results on the evaluation suite. The board <strong>ranks on a never-committed
+          held-out set</strong> (the headline); the committed public set is shown alongside as the
+          reproducibility anchor. A large <code>public &minus; held-out</code> gap is the overfit
+          tell.
+        </p>
+        <nav class="links">
+          <a href="https://github.com/astro-tools/gmat-copilot">Repository</a>
+          <a href="https://astro-tools.github.io/gmat-copilot/leaderboard/">Docs</a>
+          <a href="https://astro-tools.github.io/gmat-copilot/leaderboard/#submit-an-entry">Submit an entry</a>
+        </nav>
+      </header>
+
+      <section id="meta" class="meta" hidden></section>
+
+      <section id="status" class="status">Loading the board&hellip;</section>
+
+      <section id="board" hidden>
+        <table class="board">
+          <thead>
+            <tr>
+              <th scope="col" class="num">#</th>
+              <th scope="col">Model</th>
+              <th scope="col" class="num" title="Pass-rate on the never-committed held-out set — the ranking headline.">Held-out</th>
+              <th scope="col" class="num" title="Pass-rate on the committed public set — reproducible offline.">Public</th>
+              <th scope="col" class="num" title="public &minus; held-out: the overfit tell.">Gap</th>
+              <th scope="col" class="num" title="repaired_runnable &minus; base_runnable from the close-the-loop eval.">Repair&nbsp;lift</th>
+              <th scope="col">Kind</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </section>
+
+      <footer class="footnote">
+        <p>
+          The board carries <strong>aggregates only</strong> &mdash; per-tier pass-rates, the
+          close-the-loop figures, usage, and a run block. No prompt text, intent, or judge verdict
+          ever reaches it, so a held-out gold cannot leak through the published board. Scoring runs in
+          the maintainer's gated CI; this page renders the published <code>leaderboard.json</code> and
+          runs no model.
+        </p>
+      </footer>
+    </main>
+
+    <script src="./board.js"></script>
+  </body>
+</html>

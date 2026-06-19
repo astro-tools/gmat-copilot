@@ -18,6 +18,12 @@ on:
         type: choice
         options: [skip, build, seed]
         default: skip
+      publish_space:
+        description: >-
+          After build/seed, push the rebuilt board to the static Hugging Face Space
+          (needs the HF_TOKEN secret and the LEADERBOARD_SPACE_REPO variable).
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -281,6 +287,10 @@ jobs:
       MODELS_PAT: ${{ secrets.MODELS_PAT }}
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       HELDOUT_DATASET: ${{ vars.LEADERBOARD_HELDOUT_DATASET }}
+      # The static HF Space the rebuilt board is published to (the project's one hosted artifact,
+      # decision D16). Until the Space is created and this variable is set, the publish step is
+      # skipped; the board still builds, verifies, and uploads as an artifact.
+      SPACE_REPO: ${{ vars.LEADERBOARD_SPACE_REPO }}
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
@@ -316,6 +326,17 @@ jobs:
             --held-out leaderboard/.cache/heldout
       - name: Verify the board reproduces offline and leaks no held-out gold
         run: uv run gmat-copilot leaderboard verify leaderboard/leaderboard.json
+      - name: Publish the board to the static HF Space
+        # The Space is the project's one hosted artifact (decision D16). The preceding `verify` step
+        # is the firewall: it fails the job if the board is not aggregate-only, so a held-out gold can
+        # never reach the Space. The Space payload is the committed static front end plus the freshly
+        # built board, pushed via the HF Hub API; the published JSON carries aggregates only.
+        if: inputs.publish_space && env.HF_TOKEN != '' && env.SPACE_REPO != ''
+        run: |
+          cp leaderboard/leaderboard.json leaderboard/space/leaderboard.json
+          uvx --from huggingface_hub huggingface-cli upload "$SPACE_REPO" leaderboard/space . \
+            --repo-type space \
+            --commit-message "Refresh leaderboard (eval protocol $(uv run python -c 'import json; print(json.load(open("leaderboard/leaderboard.json"))["eval_protocol_version"])'))"
       - uses: actions/upload-artifact@v7
         with:
           name: leaderboard

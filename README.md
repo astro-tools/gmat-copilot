@@ -117,6 +117,12 @@ sidecar, the evaluation protocol, the corpus and its licences, worked examples (
 transfer, close the loop, read the provenance, reproduce the eval, add a provider), an API reference,
 and the design decisions.
 
+The per-model **leaderboard** is hosted as a static Hugging Face Space —
+**<https://huggingface.co/spaces/astro-tools/gmat-copilot-leaderboard>** — ranking `provider:model`s
+on the evaluation suite. It ranks on a never-committed held-out set (the headline) with the committed
+public set shown alongside as the reproducibility anchor; see the
+[leaderboard docs](https://astro-tools.github.io/gmat-copilot/leaderboard/).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

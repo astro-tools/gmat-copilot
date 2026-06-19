@@ -30,6 +30,10 @@ site/
 # published board (leaderboard/leaderboard.json) and the seed config are committed; this cache is not.
 leaderboard/.cache/
 
+# The published board is injected into the Space payload at publish time (copied from the committed
+# leaderboard/leaderboard.json); the copy inside the static template is a build artifact, not source.
+leaderboard/space/leaderboard.json
+
 # Editors / OS
 .vscode/
 .idea/

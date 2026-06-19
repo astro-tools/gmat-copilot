@@ -5,6 +5,16 @@ project's one hosted artifact: a `leaderboard.json` produced by gated CI and ren
 front end. Nothing about it scores submissions live — the [judge](evaluation.md#the-judge-protocol)
 is quota-metered and non-deterministic, so scoring stays in CI and the board is presentation only.
 
+## Where it lives
+
+The board is hosted as a static **Hugging Face Space**:
+
+**<https://huggingface.co/spaces/astro-tools/gmat-copilot-leaderboard>**
+
+The Space renders the published `leaderboard.json` and runs no model. It is rebuilt from the board by
+a refresh workflow whenever the eval set, the judge, or a seed changes; the `eval_protocol_version`
+stamped on the board is what keeps historical entries comparable across refreshes.
+
 ## Two sets, two roles
 
 Every model is scored on two prompt sets that play opposite roles:
